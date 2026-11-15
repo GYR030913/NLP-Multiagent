@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+runtime/
+.docker-local/
+*.egg-info/
+build/
+dist/
+__MACOSX/
