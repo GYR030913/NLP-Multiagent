@@ -1,0 +1,10 @@
+.env
+.git
+.venv
+runtime
+NLP_Mid_Test
+__pycache__
+**/__pycache__
+tests
+docs
+scripts

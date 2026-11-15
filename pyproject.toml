@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "campus-collab"
+version = "0.1.0"
+description = "Auditable multi-agent collaboration harness for the course scenarios"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+collab = "collab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["collab*"]
