@@ -359,7 +359,9 @@ class Engine:
         else:
             target['attempt'] += 1
             self.store.remember(target['owner'], action['feedback'], target['id'], 'review_rejected')
-            if target['attempt'] > 3:
+            # Attempt 1 is the initial submission; attempts 2-4 are the
+            # maximum three permitted reworks. Rejecting attempt 4 stops it.
+            if target['attempt'] > 4:
                 target['status'] = 'failed'
                 self.wake_parent(target)
                 self.end_run(target['run'], 'failed')
