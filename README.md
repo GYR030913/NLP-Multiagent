@@ -161,6 +161,7 @@ runtime/<group>/
 ## 6. 项目文档
 
 - [架构与边界](docs/architecture.md)
+- [Agent Orchestration 能力审计](docs/orchestration-audit.md)
 - [六项任务验收清单](docs/benchmark.md)
 - [开发与实测状态](docs/status.md)
 - [离线测试记录](docs/verification.md)，可用 `scripts/run_checks.py` 重新生成。
