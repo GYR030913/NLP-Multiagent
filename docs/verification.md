@@ -1,13 +1,13 @@
 # Offline verification
 
-- UTC: 2026-11-16T19:37:03.938783+00:00
+- UTC: 2026-11-16T20:06:49.368912+00:00
 - Python: 3.10.11
-- Executed tests: 77
-- Passed: 76
+- Executed tests: 79
+- Passed: 78
 - Skipped: 1
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 4.625
+- Elapsed seconds: 4.297
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
@@ -73,11 +73,13 @@ test_keyless_search_is_real_api_request_without_model_key (tests.test_transport.
 test_socket_revalidates_dns_and_rejects_rebinding (tests.test_transport.SearchAndFetchTests) ... ok
 test_api_key_header_can_be_configured (tests.test_transport.TransportTests) ... ok
 test_blocked_network_not_retried (tests.test_transport.TransportTests) ... ok
+test_configured_total_deadline_is_honored (tests.test_transport.TransportTests) ... ok
 test_correct_endpoint_and_json_protocol (tests.test_transport.TransportTests) ... ok
 test_http_auth_failure_does_not_echo_response_or_key (tests.test_transport.TransportTests) ... ok
 test_invalid_json_is_a_recoverable_model_error (tests.test_transport.TransportTests) ... ok
 test_missing_key_makes_no_request (tests.test_transport.TransportTests) ... ok
 test_prohibited_provider_rejected (tests.test_transport.TransportTests) ... ok
+test_remote_disconnect_is_retried_as_a_transport_error (tests.test_transport.TransportTests) ... ok
 test_total_deadline_stops_even_if_transport_does_not_timeout (tests.test_transport.TransportTests) ... ok
 test_transient_http_error_retries (tests.test_transport.TransportTests) ... ok
 test_truncated_json_is_not_a_completed_action (tests.test_transport.TransportTests) ... ok
@@ -92,7 +94,7 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 77 tests in 4.633s
+Ran 79 tests in 4.295s
 
 OK (skipped=1)
 
