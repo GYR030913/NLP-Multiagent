@@ -66,7 +66,7 @@ class Client:
             except urllib.error.HTTPError as exc:
                 if exc.code not in {429, 500, 502, 503, 504} or attempt == 2:
                     raise ModelError(f'LLM HTTP {exc.code}; check endpoint/model/credentials (response omitted).', self.usage) from None
-            except (TimeoutError, urllib.error.URLError) as exc:
+            except (TimeoutError, urllib.error.URLError, OSError) as exc:
                 if isinstance(getattr(exc, 'reason', None), PermissionError):
                     raise ModelError('Network blocked by execution environment; run scripts/probe_api.py in your own terminal.', self.usage) from None
                 if attempt == 2:
@@ -81,7 +81,7 @@ class Client:
 
         def worker():
             try:
-                with urllib.request.urlopen(request, timeout=min(120, self.config.request_timeout_seconds)) as response:
+                with urllib.request.urlopen(request, timeout=self.config.request_timeout_seconds) as response:
                     raw = response.read(2000001)
                     if len(raw) > 2000000:
                         raise ValueError('Provider response exceeds limit')

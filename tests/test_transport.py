@@ -1,4 +1,5 @@
 import io
+import http.client
 import json
 import os
 import tempfile
@@ -37,7 +38,14 @@ class TransportTests(unittest.TestCase):
             request = opened.call_args.args[0]
             self.assertEqual(request.full_url, 'https://api1.hkgai.net/v1/chat/completions')
             self.assertEqual(request.get_header('Authorization'), 'Bearer test-only-sentinel')
+            self.assertEqual(opened.call_args.kwargs['timeout'], 120)
             self.assertEqual(client.usage['total_tokens'], 42)
+
+    def test_configured_total_deadline_is_honored(self):
+        self.config.request_timeout_seconds = 240
+        with patch('urllib.request.urlopen', return_value=response()) as opened:
+            Client(self.config).generate([])
+            self.assertEqual(opened.call_args.kwargs['timeout'], 240)
 
     def test_api_key_header_can_be_configured(self):
         self.config.auth_header = 'api-key'
@@ -57,6 +65,12 @@ class TransportTests(unittest.TestCase):
     def test_transient_http_error_retries(self):
         error = urllib.error.HTTPError('https://example.org', 429, 'limited', {}, None)
         with patch('urllib.request.urlopen', side_effect=[error, response()]) as opened, patch('time.sleep'):
+            self.assertEqual(Client(self.config).generate([])['status'], 'ok')
+            self.assertEqual(opened.call_count, 2)
+
+    def test_remote_disconnect_is_retried_as_a_transport_error(self):
+        disconnect = http.client.RemoteDisconnected('Remote end closed connection')
+        with patch('urllib.request.urlopen', side_effect=[disconnect, response()]) as opened, patch('time.sleep'):
             self.assertEqual(Client(self.config).generate([])['status'], 'ok')
             self.assertEqual(opened.call_count, 2)
 
