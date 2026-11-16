@@ -334,7 +334,7 @@ class SecurityAndDataTests(unittest.TestCase):
             for name in ['../escape.txt', '/tmp/x.txt', 'C:/x.txt', 'a/../../x.txt', '.git/config.txt', 'a\\x.txt', 'report.pdf', 'report.docx']:
                 with self.subTest(name=name), self.assertRaises(ValueError):
                     safe_path(root, name)
-            self.assertEqual(safe_path(root, 'a/report.md'), root / 'a' / 'report.md')
+            self.assertEqual(safe_path(root, 'a/report.md'), (root / 'a' / 'report.md').resolve())
 
     def test_symlink_validation(self):
         with tempfile.TemporaryDirectory() as temp:
