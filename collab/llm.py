@@ -1,9 +1,16 @@
+import io
 import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
 import threading
 import queue
+from pathlib import Path
 
 
 class ModelError(RuntimeError):
@@ -12,11 +19,16 @@ class ModelError(RuntimeError):
         self.usage = usage or {}
 
 
+class CurlTransportError(OSError):
+    """The curl fallback could not complete the provider request."""
+
+
 class Client:
     """Provider-neutral chat JSON protocol; no OpenAI SDK or fallback provider."""
     def __init__(self, config):
         self.config = config
         self.usage = {}
+        self.transport_used = None
 
     def generate(self, messages):
         self.usage = {}
@@ -76,6 +88,104 @@ class Client:
             time.sleep(2 ** attempt)
 
     def request_with_deadline(self, request):
+        if self.should_use_curl_first():
+            return self.request_with_curl(request)
+        try:
+            return self.request_with_urllib(request)
+        except urllib.error.HTTPError:
+            raise
+        except (ModelError, TimeoutError, urllib.error.URLError, OSError) as primary:
+            if self.config.transport == 'auto' and shutil.which('curl'):
+                try:
+                    return self.request_with_curl(request)
+                except urllib.error.HTTPError:
+                    raise
+                except Exception:
+                    pass
+            raise primary
+
+    def should_use_curl_first(self):
+        if self.config.transport == 'curl':
+            return True
+        if self.config.transport != 'auto':
+            return False
+        # The HKGAI WAF requests TLS renegotiation that this Windows
+        # Python/OpenSSL combination stalls on. Native curl uses Schannel.
+        return os.name == 'nt' and sys.version_info >= (3, 11) and bool(shutil.which('curl'))
+
+    def request_with_curl(self, request):
+        curl = shutil.which('curl')
+        if not curl:
+            raise CurlTransportError('curl is not installed')
+        timeout = max(1.0, float(self.config.request_timeout_seconds))
+        body_path = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix='collab-llm-', suffix='.json', delete=False) as handle:
+                handle.write(request.data or b'')
+                body_path = Path(handle.name)
+            auth = request.get_header(self.config.auth_header)
+            if not auth or '\r' in auth or '\n' in auth:
+                raise CurlTransportError('Missing or invalid provider credential header')
+            environment = os.environ.copy()
+            environment['COLLAB_LLM_AUTH_VALUE'] = auth
+            completed = subprocess.run(
+                [
+                    curl,
+                    '--silent',
+                    '--show-error',
+                    '--max-redirs',
+                    '0',
+                    '--connect-timeout',
+                    f'{min(15, timeout):g}',
+                    '--max-time',
+                    f'{timeout:g}',
+                    '--max-filesize',
+                    '2000000',
+                    '--variable',
+                    '%COLLAB_LLM_AUTH_VALUE',
+                    '--expand-header',
+                    f'{self.config.auth_header}: {{{{COLLAB_LLM_AUTH_VALUE}}}}',
+                    '--header',
+                    'Content-Type: application/json',
+                    '--data-binary',
+                    f'@{body_path.resolve().as_posix()}',
+                    '--write-out',
+                    '\\n%{http_code}',
+                    request.full_url,
+                ],
+                capture_output=True,
+                timeout=timeout + 5,
+                env=environment,
+                check=False,
+            )
+            if completed.returncode:
+                raise CurlTransportError(f'curl exited with code {completed.returncode}')
+            raw, separator, status_text = completed.stdout.rpartition(b'\n')
+            if not separator:
+                raise CurlTransportError('curl returned no HTTP status')
+            try:
+                status = int(status_text.strip())
+            except ValueError:
+                raise CurlTransportError('curl returned an invalid HTTP status') from None
+            if status >= 400:
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    status,
+                    'provider HTTP error',
+                    {},
+                    io.BytesIO(raw),
+                )
+            if len(raw) > 2000000:
+                raise CurlTransportError('Provider response exceeds limit')
+            self.transport_used = 'curl'
+            return json.loads(raw)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError('curl provider request timed out') from None
+        finally:
+            if body_path is not None:
+                body_path.unlink(missing_ok=True)
+
+    def request_with_urllib(self, request):
         """Bound the whole request even if a server sends whitespace/keepalive bytes."""
         channel = queue.Queue(maxsize=1)
 
@@ -97,4 +207,5 @@ class Client:
             raise ModelError('LLM total request deadline exceeded; task preserved. Resume with a smaller action or inspect provider load.') from None
         if not ok:
             raise value
+        self.transport_used = 'urllib'
         return value
