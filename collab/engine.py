@@ -30,11 +30,8 @@ class Engine:
             run.setdefault('actions_used', run.get('model_calls', 0))
             run.setdefault('max_actions', self.config.max_run_actions)
             run.setdefault('budget_exhausted', False)
-        for event in self.state['events']:
-            if event['kind'] == 'agent_action' and event.get('action', {}).get('type') == 'plan':
-                task = self.state['tasks'].get(event.get('task'))
-                if task:
-                    task['planned'] = True
+        # Only a successfully applied plan persists planned=True in task state.
+        # Attempt events also include rejected plans and must not grant execution.
 
     @staticmethod
     def create(store, scenario):
@@ -77,7 +74,7 @@ class Engine:
         task_id = 't' + str(len(self.state['tasks']) + 1)
         task = {'id': task_id, 'owner': owner, 'description': description, 'criteria': criteria,
                 'run': run, 'parent': parent, 'kind': kind, 'target': target, 'private': private,
-                'status': 'running', 'children': [], 'attempt': 1, 'errors': 0,
+                'status': 'running', 'children': [], 'attempt': 1, 'errors': 0, 'planned': False,
                 'depends_on': dependencies,
                 'created_at': now(), 'depth': self.state['tasks'][parent]['depth'] + 1 if parent else 0}
         if any(self.state['tasks'][d]['status'] != 'completed' for d in dependencies):
