@@ -332,6 +332,14 @@ class PlatformTests(unittest.TestCase):
         report = json.loads((output / 'metrics.json').read_text())
         self.assertEqual(report['task_completion_rate'], 0.)
         self.assertNotIn('.env', [p.name for p in output.rglob('*')])
+        report_text = (
+            output / 'report.md'
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('## Global metrics', report_text)
+        self.assertIn('Overall goal completion rate', report_text)
+        self.assertIn('Global subtask completion rate', report_text)
+        self.assertIn('Total human wait time', report_text)
 
     def test_secret_redaction_in_tool_results(self):
         with patch.dict('os.environ', {'GITHUB_TOKEN': 'sentinel-private-token'}):
