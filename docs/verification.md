@@ -1,13 +1,13 @@
 # Offline verification
 
-- UTC: 2026-11-17T10:15:33.168385+00:00
+- UTC: 2026-11-17T10:48:33.047658+00:00
 - Python: 3.12.7
-- Executed tests: 99
-- Passed: 98
+- Executed tests: 101
+- Passed: 100
 - Skipped: 1
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 3.157
+- Elapsed seconds: 3.438
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
@@ -29,6 +29,7 @@ test_agent_direct_message_is_recipient_only (tests.test_member_a_orchestration.M
 test_cross_agent_dependency_cycle_is_rejected_atomically (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_cross_agent_dependency_cycle_is_rejected_atomically) ... ok
 test_depth_limit_does_not_reset_when_agent_changes (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_depth_limit_does_not_reset_when_agent_changes) ... ok
 test_fake_model_drives_plan_then_delegation (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_fake_model_drives_plan_then_delegation) ... ok
+test_invalid_plan_does_not_unlock_tools_after_restart (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_invalid_plan_does_not_unlock_tools_after_restart) ... ok
 test_multiple_dependencies_wake_only_after_every_prerequisite (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_multiple_dependencies_wake_only_after_every_prerequisite) ... ok
 test_plan_rejects_duplicate_acceptance_criteria (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_plan_rejects_duplicate_acceptance_criteria) ... ok
 test_rejection_after_three_reworks_fails_without_success_metrics (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_rejection_after_three_reworks_fails_without_success_metrics) ... ok
@@ -38,6 +39,7 @@ test_run_action_budget_does_not_reset_on_resume (tests.test_member_a_orchestrati
 test_second_task_imports_artifact_from_first_task (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_second_task_imports_artifact_from_first_task) ... ok
 test_task_budget_is_checked_before_review_creation (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_task_budget_is_checked_before_review_creation) ... ok
 test_teammate_gateways_are_structurally_compatible (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_teammate_gateways_are_structurally_compatible) ... ok
+test_validated_plan_still_allows_tools_after_restart (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_validated_plan_still_allows_tools_after_restart) ... ok
 test_abort_records_failure_and_clears_pending_requests (tests.test_platform.PlatformTests.test_abort_records_failure_and_clears_pending_requests) ... ok
 test_append_updates_only_the_own_file (tests.test_platform.PlatformTests.test_append_updates_only_the_own_file) ... ok
 test_approved_tool_failure_is_logged (tests.test_platform.PlatformTests.test_approved_tool_failure_is_logged) ... ok
@@ -114,7 +116,7 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests.test_python_string_escape_can_break_every_page_button) ... ok
 
 ----------------------------------------------------------------------
-Ran 99 tests in 3.162s
+Ran 101 tests in 3.441s
 
 OK (skipped=1)
 
