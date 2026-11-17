@@ -613,6 +613,55 @@ class MemberAOrchestrationTests(unittest.TestCase):
             )
         )
 
+    def test_invalid_plan_does_not_unlock_tools_after_restart(self):
+        self.engine.client = FakeClient([
+            {'type': 'plan', 'criteria': [], 'text': 'Rejected empty plan.'}
+        ])
+        self.engine.run(steps=1)
+        self.assertTrue(any(
+            event['kind'] == 'agent_action'
+            and event.get('action', {}).get('type') == 'plan'
+            for event in self.engine.state['events']
+        ))
+        self.assertTrue(any(
+            event['kind'] == 'action_error'
+            for event in self.engine.state['events']
+        ))
+
+        restored = Engine(self.store, self.config, FakeClient(), self.tools)
+        task = restored.state['tasks'][self.root]
+        self.assertFalse(task.get('planned', False))
+        self.assertNotIn('tool', restored.context(task)['allowed_actions'])
+        with self.assertRaisesRegex(ValueError, 'Plan the root task'):
+            restored.apply(task, {
+                'type': 'tool', 'name': 'files.write',
+                'args': {'path': 'must-not-run.txt', 'content': 'blocked'}
+            })
+        self.assertFalse(
+            (self.store.workspace('lead') / 'must-not-run.txt').exists()
+        )
+
+    def test_validated_plan_still_allows_tools_after_restart(self):
+        self.engine.client = FakeClient([
+            {'type': 'plan', 'criteria': ['A reviewed delivery exists.'],
+             'text': 'Apply a valid plan before restart.'}
+        ])
+        self.engine.run(steps=1)
+
+        restored = Engine(self.store, self.config, FakeClient(), self.tools)
+        task = restored.state['tasks'][self.root]
+        self.assertTrue(task['planned'])
+        self.assertEqual(task['criteria'], ['A reviewed delivery exists.'])
+        self.assertIn('tool', restored.context(task)['allowed_actions'])
+        restored.apply(task, {
+            'type': 'tool', 'name': 'files.write',
+            'args': {'path': 'after-restart.txt', 'content': 'allowed'}
+        })
+        self.assertEqual(
+            (self.store.workspace('lead') / 'after-restart.txt').read_text(),
+            'allowed',
+        )
+
     def test_plan_rejects_duplicate_acceptance_criteria(self):
         with self.assertRaisesRegex(ValueError, 'duplicates'):
             self.act(
