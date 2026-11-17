@@ -27,7 +27,8 @@ def main():
              f'- Elapsed seconds: {elapsed:.3f}', '',
              'These tests use fake model responses and mocked Docker processes. They do not measure model task quality.',
              'Windows symlink checks may be skipped if link creation is unavailable.', '', '```text', output.getvalue(), '```']
-    path = BASE / 'docs' / 'verification.md'
+    path = BASE / 'runtime' / 'verification.md'
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(lines), encoding='utf-8')
     print(f'Passed={passed}; skipped={len(result.skipped)}; failed={len(result.failures) + len(result.errors)}. Report: {path}')
     return 0 if result.wasSuccessful() else 1

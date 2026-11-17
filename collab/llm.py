@@ -88,30 +88,33 @@ class Client:
             time.sleep(2 ** attempt)
 
     def request_with_deadline(self, request):
-        if self.should_use_curl_first():
-            return self.request_with_curl(request)
-        try:
-            return self.request_with_urllib(request)
-        except urllib.error.HTTPError:
-            raise
-        except (ModelError, TimeoutError, urllib.error.URLError, OSError) as primary:
-            if self.config.transport == 'auto' and shutil.which('curl'):
-                try:
+        last_error = None
+        for transport in self.transport_order():
+            try:
+                if transport == 'curl':
                     return self.request_with_curl(request)
-                except urllib.error.HTTPError:
-                    raise
-                except Exception:
-                    pass
-            raise primary
+                return self.request_with_urllib(request)
+            except urllib.error.HTTPError:
+                raise
+            except (ModelError, TimeoutError, urllib.error.URLError, OSError) as exc:
+                last_error = exc
+        if last_error is None:
+            raise ModelError('No LLM transport is available.')
+        raise last_error
+
+    def transport_order(self):
+        if self.config.transport == 'curl':
+            return ('curl',)
+        if self.config.transport == 'urllib':
+            return ('urllib',)
+        if not shutil.which('curl'):
+            return ('urllib',)
+        if os.name == 'nt' and sys.version_info >= (3, 11):
+            return ('curl', 'urllib')
+        return ('urllib', 'curl')
 
     def should_use_curl_first(self):
-        if self.config.transport == 'curl':
-            return True
-        if self.config.transport != 'auto':
-            return False
-        # The HKGAI WAF requests TLS renegotiation that this Windows
-        # Python/OpenSSL combination stalls on. Native curl uses Schannel.
-        return os.name == 'nt' and sys.version_info >= (3, 11) and bool(shutil.which('curl'))
+        return self.transport_order()[0] == 'curl'
 
     def request_with_curl(self, request):
         curl = shutil.which('curl')

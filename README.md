@@ -162,13 +162,12 @@ runtime/<group>/
 
 ## 6. 项目文档
 
-- [成员A分支说明（先读）](docs/member-a-branch-readme.md)
+- [成员 A 工作与分支报告（先读）](docs/member-a-work-report.md)
 - [架构与边界](docs/architecture.md)
 - [Agent Orchestration 集成契约](docs/orchestration-contract.md)
-- [Agent Orchestration 能力审计](docs/orchestration-audit.md)
-- [成员 A 集成验证](docs/member-a-verification.md)
 - [六项任务验收清单](docs/benchmark.md)
-- [开发与实测状态](docs/status.md)
-- [离线测试记录](docs/verification.md)，可用 `scripts/run_checks.py` 重新生成。
+- [评测协议](docs/evaluation.md)
+
+离线测试可用 `scripts/run_checks.py` 重新生成摘要；原始日志写入被 Git 忽略的 `runtime/verification.md`，不作为公开文档提交。
 
 所有文档为 Markdown。HTML 只作为可运行网页、图表和场景三明确指定的幻灯片产物；测试集 HTML 要求与课程一般文档限制的关系需要向老师确认。仓库已有Git历史和协作PR；尚未推送的本地分支必须在验证完成后按团队流程提交。
