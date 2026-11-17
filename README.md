@@ -8,16 +8,16 @@
 
 ## 1. 环境配置
 
-Python 3.11+；平台本身仅使用标准库，无须安装第三方 Python 包。当前电脑建议使用 `D:\Anaconda\python.exe`，默认 `python` 指向的另一个环境无法启动。
+Python 3.11+；平台本身仅使用标准库，无须安装第三方 Python 包。应显式使用3.11+解释器或对应的虚拟环境。
 
 涉及 JavaScript 的产物还需宿主安装 Node.js，用于固定参数的 `node --check` 静态语法检查。检查器只解析源码，不执行生成的代码；代码执行仍在 Docker 内。可用 `ui.check` 检查 `.html`、`.js` 或 Python 字面量 `INDEX_HTML`。发布及最终提交会拦截语法错误，但静态检查不能代替浏览器点击测试。
 
 在项目目录运行：
 
 ```powershell
-cd E:\NLP_Multiagent
-& 'D:\Anaconda\python.exe' -m unittest discover -s tests -v
-& 'D:\Anaconda\python.exe' -m collab scenarios
+cd D:\Projects\NLP-Multiagent
+python -m unittest discover -s tests -v
+python -m collab scenarios
 ```
 
 复制 `.env.example` 为 `.env`，填写密钥；已有 `.env` 时保留现有文件。当前接口配置：
@@ -28,13 +28,15 @@ LLM_BASE_URL=https://api1.hkgai.net/v1
 LLM_MODEL=t2_hkgai-v3_fp8_1m_e7
 LLM_API_KEY=在本地填写
 LLM_AUTH_HEADER=Authorization
+LLM_MAX_RUN_ACTIONS=360
+LLM_TRANSPORT=auto
 TAVILY_API_KEY=可选，正式评测建议填写以提高搜索限额
 ```
 
-`LLM_BASE_URL` 包含 `/v1`；省略它时当前服务返回 404。请求发送到 `/v1/chat/completions`。密钥不写入源码、命令参数、运行日志或提交包。环境中已设置的同名变量优先于 `.env`；更改后如仍读到旧值，请开启新终端或清除旧环境变量。
+`LLM_BASE_URL` 包含 `/v1`；省略它时当前服务返回 404。请求发送到 `/v1/chat/completions`。`LLM_TRANSPORT=auto`在Windows Python 3.11+上使用系统curl的原生TLS，避开当前HKGAI端点与Python OpenSSL的握手停滞。认证值只通过子进程环境传给curl，不出现在命令行或日志。密钥不写入源码、运行日志或提交包。
 
 ```powershell
-& 'D:\Anaconda\python.exe' scripts/probe_api.py
+python scripts/probe_api.py
 ```
 
 期望输出 `connection_ok: true`。探测只发出一个最小 JSON 生成请求；网络/限流错误可能产生重试。当前 Codex 工具环境的外网连接被限制，因此需要在用户普通终端做实际接口测试；401/403 表示需要检查密钥/权限，404 检查路径和模型，429 检查限流/额度，400 检查接口协议。
@@ -47,8 +49,8 @@ HKUST GenAI 旧项目的 GPT 配置与本课程指定的 HKGAI/DeepSeek 配置�
 
 ```powershell
 docker build -f Dockerfile.sandbox -t campus-collab-sandbox:local .
-& 'D:\Anaconda\python.exe' -m collab doctor
-& 'D:\Anaconda\python.exe' scripts/check_runtime.py --search
+python -m collab doctor
+python scripts/check_runtime.py --search
 ```
 
 沙箱镜像含 Python 标准库和 Git。每次执行只有当前智能体的工作目录被挂载，关闭网络，限制资源，并使用非 root 用户。**未提供宿主机执行的降级模式。** GitHub 推送需要单次人工批准，随后才开启该次推送容器的网络。
@@ -60,8 +62,8 @@ docker build -f Dockerfile.sandbox -t campus-collab-sandbox:local .
 创建三个互相独立的群组：
 
 ```powershell
-& 'D:\Anaconda\python.exe' scripts/prepare_groups.py
-& 'D:\Anaconda\python.exe' -m collab chat software
+python scripts/prepare_groups.py
+python -m collab chat software
 ```
 
 在交互界面输入：
@@ -92,23 +94,23 @@ docker build -f Dockerfile.sandbox -t campus-collab-sandbox:local .
 | `/resume 30` | 最多再执行 30 个模型动作 |
 | `/status`、`/export`、`/quit` | 状态、导出和退出 |
 
-澄清、审批和验收后需要 `/resume` 才继续模型执行。模型动作和群聊消息会实时显示。单次运行最多 120 步，默认 30 步；耗尽后保留队列，需要人工决定是否继续，不会将其当成完成。Ctrl+C 保存已持久化状态，随后可恢复。不要同时对同一群组启动两个写入进程。
+根工作任务必须先通过`plan`提交非空且不重复的验收条件，之后才能使用工具、委派或提交。澄清、审批和验收后需要`/resume`才继续。单次运行最多120步、默认30步；整个目标另有持久化的360次模型动作硬预算，恢复不会重置。预算耗尽后明确标记且不计为完成。Ctrl+C保存已持久化状态，随后可恢复。不要同时对同一群组启动两个写入进程。
 
 软件场景两项任务验收结束后退出，分别启动：
 
 ```powershell
-& 'D:\Anaconda\python.exe' -m collab chat newsroom
-& 'D:\Anaconda\python.exe' -m collab chat fund
+python -m collab chat newsroom
+python -m collab chat fund
 ```
 
 也支持非交互命令：
 
 ```powershell
-& 'D:\Anaconda\python.exe' -m collab post software --task 1 --steps 10
-& 'D:\Anaconda\python.exe' -m collab status software
-& 'D:\Anaconda\python.exe' -m collab answer software q1 '这里填写实际回答'
-& 'D:\Anaconda\python.exe' -m collab resume software --steps 20
-& 'D:\Anaconda\python.exe' -m collab export software
+python -m collab post software --task 1 --steps 10
+python -m collab status software
+python -m collab answer software q1 '这里填写实际回答'
+python -m collab resume software --steps 20
+python -m collab export software
 ```
 
 任意新题可使用 `post GROUP --text '目标'` 或 `--file task.md`，不局限于这六个任务。
@@ -118,8 +120,8 @@ docker build -f Dockerfile.sandbox -t campus-collab-sandbox:local .
 出现根任务 `acceptance` 请求后先在聊天中 `/export`，再开另一个 PowerShell：
 
 ```powershell
-cd E:\NLP_Multiagent
-& 'D:\Anaconda\python.exe' scripts/preview_booking.py
+cd D:\Projects\NLP-Multiagent
+python scripts/preview_booking.py
 ```
 
 服务器启动后打开 `http://127.0.0.1:8000`，检查预约、重复预约拒绝、取消后重订。预览保留经哈希验证的原始交付源码，在 Docker 中执行；只挂载这份只读源码和独立数据目录，不注入模型/搜索/GitHub 密钥。为浏览器访问启用 bridge 网络，并仅发布到宿主 127.0.0.1。原程序的监听地址只在容器启动时调整，不改产物源码。
@@ -141,7 +143,7 @@ runtime/<group>/
   agents/<agent>/memory.jsonl
   artifacts/<sha256>         # 发布时的不可变文件快照
   export/
-    metrics.json             # 完成率、耗时、人类等待、调用/用量、记忆快照
+    metrics.json             # 完成率、耗时、人类等待、动作预算、调用/用量、记忆快照
     report.md
     dialogue.md
     dialogue.jsonl
@@ -161,10 +163,11 @@ runtime/<group>/
 ## 6. 项目文档
 
 - [架构与边界](docs/architecture.md)
+- [Agent Orchestration 集成契约](docs/orchestration-contract.md)
 - [Agent Orchestration 能力审计](docs/orchestration-audit.md)
 - [成员 A 集成验证](docs/member-a-verification.md)
 - [六项任务验收清单](docs/benchmark.md)
 - [开发与实测状态](docs/status.md)
 - [离线测试记录](docs/verification.md)，可用 `scripts/run_checks.py` 重新生成。
 
-所有文档为 Markdown。HTML 只作为可运行网页、图表和场景三明确指定的幻灯片产物；测试集 HTML 要求与课程一般文档限制的关系需要向老师确认。此目录尚未创建 GitHub 仓库或 Git 提交，不应把本次生成视为团队持续贡献记录。
+所有文档为 Markdown。HTML 只作为可运行网页、图表和场景三明确指定的幻灯片产物；测试集 HTML 要求与课程一般文档限制的关系需要向老师确认。仓库已有Git历史和协作PR；尚未推送的本地分支必须在验证完成后按团队流程提交。
