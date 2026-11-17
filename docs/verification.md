@@ -1,13 +1,13 @@
 # Offline verification
 
-- UTC: 2026-11-17T06:59:57.981198+00:00
-- Python: 3.11.18
-- Executed tests: 81
-- Passed: 81
-- Skipped: 0
+- UTC: 2026-11-17T10:48:33.047658+00:00
+- Python: 3.12.7
+- Executed tests: 101
+- Passed: 100
+- Skipped: 1
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 0.516
+- Elapsed seconds: 3.438
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
@@ -25,6 +25,21 @@ test_private_and_custom_runs_excluded (tests.test_benchmark.BenchmarkTests.test_
 test_export_calculates_metrics_only_once (tests.test_evaluation.ExportConsistencyTests.test_export_calculates_metrics_only_once) ... ok
 test_empty_evaluation_returns_safe_values (tests.test_evaluation.GlobalMetricsTests.test_empty_evaluation_returns_safe_values) ... ok
 test_global_metrics_aggregate_multiple_runs (tests.test_evaluation.GlobalMetricsTests.test_global_metrics_aggregate_multiple_runs) ... ok
+test_agent_direct_message_is_recipient_only (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_agent_direct_message_is_recipient_only) ... ok
+test_cross_agent_dependency_cycle_is_rejected_atomically (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_cross_agent_dependency_cycle_is_rejected_atomically) ... ok
+test_depth_limit_does_not_reset_when_agent_changes (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_depth_limit_does_not_reset_when_agent_changes) ... ok
+test_fake_model_drives_plan_then_delegation (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_fake_model_drives_plan_then_delegation) ... ok
+test_invalid_plan_does_not_unlock_tools_after_restart (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_invalid_plan_does_not_unlock_tools_after_restart) ... ok
+test_multiple_dependencies_wake_only_after_every_prerequisite (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_multiple_dependencies_wake_only_after_every_prerequisite) ... ok
+test_plan_rejects_duplicate_acceptance_criteria (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_plan_rejects_duplicate_acceptance_criteria) ... ok
+test_rejection_after_three_reworks_fails_without_success_metrics (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_rejection_after_three_reworks_fails_without_success_metrics) ... ok
+test_restart_recovers_running_tasks_and_skips_waiting_states (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_restart_recovers_running_tasks_and_skips_waiting_states) ... ok
+test_review_cannot_reuse_tool_evidence_from_an_earlier_review (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_review_cannot_reuse_tool_evidence_from_an_earlier_review) ... ok
+test_run_action_budget_does_not_reset_on_resume (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_run_action_budget_does_not_reset_on_resume) ... ok
+test_second_task_imports_artifact_from_first_task (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_second_task_imports_artifact_from_first_task) ... ok
+test_task_budget_is_checked_before_review_creation (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_task_budget_is_checked_before_review_creation) ... ok
+test_teammate_gateways_are_structurally_compatible (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_teammate_gateways_are_structurally_compatible) ... ok
+test_validated_plan_still_allows_tools_after_restart (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_validated_plan_still_allows_tools_after_restart) ... ok
 test_abort_records_failure_and_clears_pending_requests (tests.test_platform.PlatformTests.test_abort_records_failure_and_clears_pending_requests) ... ok
 test_append_updates_only_the_own_file (tests.test_platform.PlatformTests.test_append_updates_only_the_own_file) ... ok
 test_approved_tool_failure_is_logged (tests.test_platform.PlatformTests.test_approved_tool_failure_is_logged) ... ok
@@ -53,6 +68,7 @@ test_replacement_match_mismatch_does_not_modify_file (tests.test_platform.Platfo
 test_restart_recovers_a_running_task_missing_from_queue (tests.test_platform.PlatformTests.test_restart_recovers_a_running_task_missing_from_queue) ... ok
 test_review_context_excludes_plan_and_exposes_current_evidence (tests.test_platform.PlatformTests.test_review_context_excludes_plan_and_exposes_current_evidence) ... ok
 test_reviews_require_real_independent_evidence (tests.test_platform.PlatformTests.test_reviews_require_real_independent_evidence) ... ok
+test_root_task_must_plan_before_tools_or_delegation (tests.test_platform.PlatformTests.test_root_task_must_plan_before_tools_or_delegation) ... ok
 test_secret_redaction_in_tool_results (tests.test_platform.PlatformTests.test_secret_redaction_in_tool_results) ... ok
 test_self_review_and_self_delegation_forbidden (tests.test_platform.PlatformTests.test_self_review_and_self_delegation_forbidden) ... ok
 test_separate_agent_filesystems (tests.test_platform.PlatformTests.test_separate_agent_filesystems) ... ok
@@ -64,7 +80,7 @@ test_html_scripts_not_in_research_text (tests.test_platform.SecurityAndDataTests
 test_path_validation (tests.test_platform.SecurityAndDataTests.test_path_validation) ... ok
 test_primary_scenario_prompts_load_without_macos_noise (tests.test_platform.SecurityAndDataTests.test_primary_scenario_prompts_load_without_macos_noise) ... ok
 test_private_network_urls_are_blocked (tests.test_platform.SecurityAndDataTests.test_private_network_urls_are_blocked) ... ok
-test_symlink_validation (tests.test_platform.SecurityAndDataTests.test_symlink_validation) ... ok
+test_symlink_validation (tests.test_platform.SecurityAndDataTests.test_symlink_validation) ... skipped 'Symlink creation not permitted on this Windows host'
 test_hash_mismatch_stops_preview (tests.test_preview.PreviewTests.test_hash_mismatch_stops_preview) ... ok
 test_invalid_port_stops_before_launch (tests.test_preview.PreviewTests.test_invalid_port_stops_before_launch) ... ok
 test_preview_does_not_approve_or_modify_task_state (tests.test_preview.PreviewTests.test_preview_does_not_approve_or_modify_task_state) ... ok
@@ -77,11 +93,15 @@ test_keyless_search_is_real_api_request_without_model_key (tests.test_transport.
 test_socket_revalidates_dns_and_rejects_rebinding (tests.test_transport.SearchAndFetchTests.test_socket_revalidates_dns_and_rejects_rebinding) ... ok
 test_api_key_header_can_be_configured (tests.test_transport.TransportTests.test_api_key_header_can_be_configured) ... ok
 test_blocked_network_not_retried (tests.test_transport.TransportTests.test_blocked_network_not_retried) ... ok
+test_configured_total_deadline_is_honored (tests.test_transport.TransportTests.test_configured_total_deadline_is_honored) ... ok
 test_correct_endpoint_and_json_protocol (tests.test_transport.TransportTests.test_correct_endpoint_and_json_protocol) ... ok
+test_curl_http_error_is_not_reported_as_success (tests.test_transport.TransportTests.test_curl_http_error_is_not_reported_as_success) ... ok
+test_curl_transport_keeps_credential_out_of_process_arguments (tests.test_transport.TransportTests.test_curl_transport_keeps_credential_out_of_process_arguments) ... ok
 test_http_auth_failure_does_not_echo_response_or_key (tests.test_transport.TransportTests.test_http_auth_failure_does_not_echo_response_or_key) ... ok
 test_invalid_json_is_a_recoverable_model_error (tests.test_transport.TransportTests.test_invalid_json_is_a_recoverable_model_error) ... ok
 test_missing_key_makes_no_request (tests.test_transport.TransportTests.test_missing_key_makes_no_request) ... ok
 test_prohibited_provider_rejected (tests.test_transport.TransportTests.test_prohibited_provider_rejected) ... ok
+test_remote_disconnect_is_retried_as_a_transport_error (tests.test_transport.TransportTests.test_remote_disconnect_is_retried_as_a_transport_error) ... ok
 test_total_deadline_stops_even_if_transport_does_not_timeout (tests.test_transport.TransportTests.test_total_deadline_stops_even_if_transport_does_not_timeout) ... ok
 test_transient_http_error_retries (tests.test_transport.TransportTests.test_transient_http_error_retries) ... ok
 test_truncated_json_is_not_a_completed_action (tests.test_transport.TransportTests.test_truncated_json_is_not_a_completed_action) ... ok
@@ -96,8 +116,8 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests.test_python_string_escape_can_break_every_page_button) ... ok
 
 ----------------------------------------------------------------------
-Ran 81 tests in 0.516s
+Ran 101 tests in 3.441s
 
-OK
+OK (skipped=1)
 
 ```

@@ -1,4 +1,5 @@
 import io
+import http.client
 import json
 import os
 import tempfile
@@ -6,6 +7,7 @@ import unittest
 import urllib.error
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from collab.config import Config
 from collab.llm import Client, ModelError
@@ -28,7 +30,8 @@ def response(content='{"status":"ok"}', finish_reason='stop'):
 
 class TransportTests(unittest.TestCase):
     def setUp(self):
-        self.config = Config('hkgai', 'https://api1.hkgai.net/v1', 'course-model', 'test-only-sentinel')
+        self.config = Config('hkgai', 'https://api1.hkgai.net/v1', 'course-model',
+                             'test-only-sentinel', transport='urllib')
 
     def test_correct_endpoint_and_json_protocol(self):
         with patch('urllib.request.urlopen', return_value=response()) as opened:
@@ -37,7 +40,14 @@ class TransportTests(unittest.TestCase):
             request = opened.call_args.args[0]
             self.assertEqual(request.full_url, 'https://api1.hkgai.net/v1/chat/completions')
             self.assertEqual(request.get_header('Authorization'), 'Bearer test-only-sentinel')
+            self.assertEqual(opened.call_args.kwargs['timeout'], 120)
             self.assertEqual(client.usage['total_tokens'], 42)
+
+    def test_configured_total_deadline_is_honored(self):
+        self.config.request_timeout_seconds = 240
+        with patch('urllib.request.urlopen', return_value=response()) as opened:
+            Client(self.config).generate([])
+            self.assertEqual(opened.call_args.kwargs['timeout'], 240)
 
     def test_api_key_header_can_be_configured(self):
         self.config.auth_header = 'api-key'
@@ -59,6 +69,44 @@ class TransportTests(unittest.TestCase):
         with patch('urllib.request.urlopen', side_effect=[error, response()]) as opened, patch('time.sleep'):
             self.assertEqual(Client(self.config).generate([])['status'], 'ok')
             self.assertEqual(opened.call_count, 2)
+
+    def test_remote_disconnect_is_retried_as_a_transport_error(self):
+        disconnect = http.client.RemoteDisconnected('Remote end closed connection')
+        with patch('urllib.request.urlopen', side_effect=[disconnect, response()]) as opened, patch('time.sleep'):
+            self.assertEqual(Client(self.config).generate([])['status'], 'ok')
+            self.assertEqual(opened.call_count, 2)
+
+    def test_curl_transport_keeps_credential_out_of_process_arguments(self):
+        self.config.transport = 'curl'
+        payload = response().getvalue()
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=payload + b'\n200',
+            stderr=b'',
+        )
+        with patch('collab.llm.shutil.which', return_value='curl.exe'), patch(
+            'collab.llm.subprocess.run', return_value=completed
+        ) as invoked:
+            result = Client(self.config).generate([])
+
+        self.assertEqual(result, {'status': 'ok'})
+        argv = invoked.call_args.args[0]
+        self.assertNotIn('test-only-sentinel', ' '.join(argv))
+        self.assertEqual(
+            invoked.call_args.kwargs['env']['COLLAB_LLM_AUTH_VALUE'],
+            'Bearer test-only-sentinel',
+        )
+        self.assertTrue(any('%{http_code}' in str(item) for item in argv))
+        self.assertTrue(any('{{COLLAB_LLM_AUTH_VALUE}}' in str(item) for item in argv))
+
+    def test_curl_http_error_is_not_reported_as_success(self):
+        self.config.transport = 'curl'
+        completed = SimpleNamespace(returncode=0, stdout=b'forbidden\n403', stderr=b'')
+        with patch('collab.llm.shutil.which', return_value='curl.exe'), patch(
+            'collab.llm.subprocess.run', return_value=completed
+        ):
+            with self.assertRaisesRegex(ModelError, 'LLM HTTP 403'):
+                Client(self.config).generate([])
 
     def test_truncated_json_is_not_a_completed_action(self):
         with patch('urllib.request.urlopen', side_effect=[response(finish_reason='length'), response(finish_reason='length')]) as opened:

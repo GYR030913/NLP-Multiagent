@@ -22,11 +22,13 @@ class Config:
     search_key: str = ''
     image: str = 'campus-collab-sandbox:local'
     max_steps: int = 120
+    max_run_actions: int = 360
     max_depth: int = 5
     max_tasks: int = 40
     auth_header: str = 'Authorization'
     max_output_tokens: int = 8192
     request_timeout_seconds: float = 120
+    transport: str = 'auto'
 
     @classmethod
     def from_env(cls):
@@ -42,9 +44,14 @@ class Config:
             raise ValueError('DeepSeek must use api.deepseek.com; use hkgai for your course endpoint.')
         if any(x in parts.hostname.lower() for x in ('openai', 'anthropic')):
             raise ValueError('OpenAI/Anthropic endpoints are prohibited by the course.')
+        transport = os.getenv('LLM_TRANSPORT', 'auto').lower()
+        if transport not in {'auto', 'curl', 'urllib'}:
+            raise ValueError('LLM_TRANSPORT must be auto, curl, or urllib.')
         return cls(provider, base.rstrip('/'), os.getenv('LLM_MODEL', 'deepseek-chat'),
                    os.getenv('LLM_API_KEY', ''), os.getenv('TAVILY_API_KEY', ''),
                    os.getenv('SANDBOX_IMAGE', 'campus-collab-sandbox:local'),
                    auth_header=os.getenv('LLM_AUTH_HEADER', 'Authorization'),
                    max_output_tokens=int(os.getenv('LLM_MAX_OUTPUT_TOKENS', '8192')),
-                   request_timeout_seconds=float(os.getenv('LLM_REQUEST_TIMEOUT_SECONDS', '120')))
+                   request_timeout_seconds=float(os.getenv('LLM_REQUEST_TIMEOUT_SECONDS', '120')),
+                   max_run_actions=int(os.getenv('LLM_MAX_RUN_ACTIONS', '360')),
+                   transport=transport)
