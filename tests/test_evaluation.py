@@ -180,5 +180,36 @@ class GlobalMetricsTests(unittest.TestCase):
         self.assertEqual(result['total_human_wait_seconds'], 0.0)
 
 
+class ExportConsistencyTests(unittest.TestCase):
+
+    def test_export_calculates_metrics_only_once(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from collab import report
+
+        state = {
+            "runs": {},
+            "tasks": {},
+            "requests": {},
+            "sources": {},
+            "events": [],
+            "artifacts": {},
+        }
+
+        with TemporaryDirectory() as directory:
+            store = SimpleNamespace(path=Path(directory))
+
+            with patch(
+                "collab.report.metrics",
+                wraps=report.metrics,
+            ) as calculate:
+
+                report.export(store, state)
+
+                calculate.assert_called_once_with(state)
+
+
 if __name__ == '__main__':
     unittest.main()

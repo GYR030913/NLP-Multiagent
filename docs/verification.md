@@ -1,18 +1,28 @@
 # Offline verification
 
-- UTC: 2026-11-17T06:29:42.334467+00:00
+- UTC: 2026-11-17T06:59:57.981198+00:00
 - Python: 3.11.18
-- Executed tests: 71
-- Passed: 71
+- Executed tests: 81
+- Passed: 81
 - Skipped: 0
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 0.405
+- Elapsed seconds: 0.516
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
 
 ```text
+test_duplicate_runs_do_not_inflate_task_count (tests.test_benchmark.BenchmarkTests.test_duplicate_runs_do_not_inflate_task_count) ... ok
+test_empty_benchmark (tests.test_benchmark.BenchmarkTests.test_empty_benchmark) ... ok
+test_export_generates_json_and_markdown (tests.test_benchmark.BenchmarkTests.test_export_generates_json_and_markdown) ... ok
+test_first_failed_attempt_is_not_replaced (tests.test_benchmark.BenchmarkTests.test_first_failed_attempt_is_not_replaced) ... ok
+test_full_benchmark (tests.test_benchmark.BenchmarkTests.test_full_benchmark) ... ok
+test_missing_group_is_not_started (tests.test_benchmark.BenchmarkTests.test_missing_group_is_not_started) ... ok
+test_mixed_statuses_and_weighted_subtasks (tests.test_benchmark.BenchmarkTests.test_mixed_statuses_and_weighted_subtasks) ... ok
+test_partial_benchmark (tests.test_benchmark.BenchmarkTests.test_partial_benchmark) ... ok
+test_private_and_custom_runs_excluded (tests.test_benchmark.BenchmarkTests.test_private_and_custom_runs_excluded) ... ok
+test_export_calculates_metrics_only_once (tests.test_evaluation.ExportConsistencyTests.test_export_calculates_metrics_only_once) ... ok
 test_empty_evaluation_returns_safe_values (tests.test_evaluation.GlobalMetricsTests.test_empty_evaluation_returns_safe_values) ... ok
 test_global_metrics_aggregate_multiple_runs (tests.test_evaluation.GlobalMetricsTests.test_global_metrics_aggregate_multiple_runs) ... ok
 test_abort_records_failure_and_clears_pending_requests (tests.test_platform.PlatformTests.test_abort_records_failure_and_clears_pending_requests) ... ok
@@ -86,7 +96,7 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests.test_python_string_escape_can_break_every_page_button) ... ok
 
 ----------------------------------------------------------------------
-Ran 71 tests in 0.405s
+Ran 81 tests in 0.516s
 
 OK
 
