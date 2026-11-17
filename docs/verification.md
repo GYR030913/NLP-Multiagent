@@ -1,18 +1,30 @@
 # Offline verification
 
-- UTC: 2026-11-17T08:05:49.320762+00:00
-- Python: 3.11.15
-- Executed tests: 87
-- Passed: 86
+- UTC: 2026-11-17T10:15:33.168385+00:00
+- Python: 3.12.7
+- Executed tests: 99
+- Passed: 98
 - Skipped: 1
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 6.984
+- Elapsed seconds: 3.157
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
 
 ```text
+test_duplicate_runs_do_not_inflate_task_count (tests.test_benchmark.BenchmarkTests.test_duplicate_runs_do_not_inflate_task_count) ... ok
+test_empty_benchmark (tests.test_benchmark.BenchmarkTests.test_empty_benchmark) ... ok
+test_export_generates_json_and_markdown (tests.test_benchmark.BenchmarkTests.test_export_generates_json_and_markdown) ... ok
+test_first_failed_attempt_is_not_replaced (tests.test_benchmark.BenchmarkTests.test_first_failed_attempt_is_not_replaced) ... ok
+test_full_benchmark (tests.test_benchmark.BenchmarkTests.test_full_benchmark) ... ok
+test_missing_group_is_not_started (tests.test_benchmark.BenchmarkTests.test_missing_group_is_not_started) ... ok
+test_mixed_statuses_and_weighted_subtasks (tests.test_benchmark.BenchmarkTests.test_mixed_statuses_and_weighted_subtasks) ... ok
+test_partial_benchmark (tests.test_benchmark.BenchmarkTests.test_partial_benchmark) ... ok
+test_private_and_custom_runs_excluded (tests.test_benchmark.BenchmarkTests.test_private_and_custom_runs_excluded) ... ok
+test_export_calculates_metrics_only_once (tests.test_evaluation.ExportConsistencyTests.test_export_calculates_metrics_only_once) ... ok
+test_empty_evaluation_returns_safe_values (tests.test_evaluation.GlobalMetricsTests.test_empty_evaluation_returns_safe_values) ... ok
+test_global_metrics_aggregate_multiple_runs (tests.test_evaluation.GlobalMetricsTests.test_global_metrics_aggregate_multiple_runs) ... ok
 test_agent_direct_message_is_recipient_only (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_agent_direct_message_is_recipient_only) ... ok
 test_cross_agent_dependency_cycle_is_rejected_atomically (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_cross_agent_dependency_cycle_is_rejected_atomically) ... ok
 test_depth_limit_does_not_reset_when_agent_changes (tests.test_member_a_orchestration.MemberAOrchestrationTests.test_depth_limit_does_not_reset_when_agent_changes) ... ok
@@ -102,7 +114,7 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests.test_python_string_escape_can_break_every_page_button) ... ok
 
 ----------------------------------------------------------------------
-Ran 87 tests in 6.987s
+Ran 99 tests in 3.162s
 
 OK (skipped=1)
 
