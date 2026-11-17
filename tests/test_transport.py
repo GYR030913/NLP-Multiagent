@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from collab.config import Config
-from collab.llm import Client, ModelError
+from collab.llm import Client, CurlTransportError, ModelError
 from collab.sandbox import Sandbox
 from collab.report import metrics
 from collab.store import Store
@@ -107,6 +107,57 @@ class TransportTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(ModelError, 'LLM HTTP 403'):
                 Client(self.config).generate([])
+
+    def test_auto_transport_order_prefers_curl_on_windows_311(self):
+        self.config.transport = 'auto'
+        with patch('collab.llm.shutil.which', return_value='curl.exe'), patch(
+            'collab.llm.os.name', 'nt'
+        ), patch('collab.llm.sys.version_info', (3, 11, 0)):
+            self.assertEqual(Client(self.config).transport_order(), ('curl', 'urllib'))
+
+    def test_auto_transport_falls_back_from_curl_to_urllib(self):
+        self.config.transport = 'auto'
+        request = urllib.request.Request(
+            self.config.base_url + '/chat/completions',
+            data=b'{}',
+            headers={'Content-Type': 'application/json'},
+        )
+        client = Client(self.config)
+        with patch.object(client, 'transport_order', return_value=('curl', 'urllib')), patch.object(
+            client, 'request_with_curl', side_effect=CurlTransportError('TLS handshake failed')
+        ), patch.object(client, 'request_with_urllib', return_value={'status': 'ok'}) as urllib_request:
+            self.assertEqual(client.request_with_deadline(request), {'status': 'ok'})
+            urllib_request.assert_called_once_with(request)
+
+    def test_auto_transport_falls_back_from_urllib_to_curl(self):
+        self.config.transport = 'auto'
+        request = urllib.request.Request(
+            self.config.base_url + '/chat/completions',
+            data=b'{}',
+            headers={'Content-Type': 'application/json'},
+        )
+        client = Client(self.config)
+        with patch.object(client, 'transport_order', return_value=('urllib', 'curl')), patch.object(
+            client, 'request_with_urllib', side_effect=urllib.error.URLError('TLS handshake failed')
+        ), patch.object(client, 'request_with_curl', return_value={'status': 'ok'}) as curl_request:
+            self.assertEqual(client.request_with_deadline(request), {'status': 'ok'})
+            curl_request.assert_called_once_with(request)
+
+    def test_auto_transport_does_not_fallback_after_http_error(self):
+        self.config.transport = 'auto'
+        request = urllib.request.Request(
+            self.config.base_url + '/chat/completions',
+            data=b'{}',
+            headers={'Content-Type': 'application/json'},
+        )
+        client = Client(self.config)
+        error = urllib.error.HTTPError('https://api1.hkgai.net/v1/chat/completions', 403, 'forbidden', {}, None)
+        with patch.object(client, 'transport_order', return_value=('curl', 'urllib')), patch.object(
+            client, 'request_with_curl', side_effect=error
+        ), patch.object(client, 'request_with_urllib') as urllib_request:
+            with self.assertRaises(urllib.error.HTTPError):
+                client.request_with_deadline(request)
+            urllib_request.assert_not_called()
 
     def test_truncated_json_is_not_a_completed_action(self):
         with patch('urllib.request.urlopen', side_effect=[response(finish_reason='length'), response(finish_reason='length')]) as opened:
