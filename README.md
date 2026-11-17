@@ -162,6 +162,7 @@ runtime/<group>/
 
 ## 6. 项目文档
 
+- [成员A分支说明（先读）](docs/member-a-branch-readme.md)
 - [架构与边界](docs/architecture.md)
 - [Agent Orchestration 集成契约](docs/orchestration-contract.md)
 - [Agent Orchestration 能力审计](docs/orchestration-audit.md)
