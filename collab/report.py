@@ -141,7 +141,8 @@ def metrics(state):
 def export(store, state):
     output = store.path / 'export'
     output.mkdir(exist_ok=True)
-    dump(output / 'metrics.json', metrics(state))
+    report = metrics(state)
+    dump(output / 'metrics.json', report)
     dump(output / 'sources.json', state['sources'])
     dump(output / 'state.json', state)
     with (output / 'dialogue.jsonl').open('w', encoding='utf-8') as handle:
@@ -178,8 +179,6 @@ def export(store, state):
             destination.write_bytes((store.path / 'artifacts' / item['sha256']).read_bytes())
             manifest['files'].append({'path': item['path'], 'id': artifact_id, 'sha256': item['sha256']})
         dump(delivery / 'delivery_manifest.json', manifest)
-
-    report = metrics(state)
 
     def format_percentage(value):
         return f'{value:.1%}' if value is not None else 'N/A'
