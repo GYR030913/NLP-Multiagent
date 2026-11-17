@@ -1,18 +1,30 @@
 # Offline verification
 
-- UTC: 2026-11-15T17:33:55.003299+00:00
-- Python: 3.12.7
-- Executed tests: 69
-- Passed: 68
-- Skipped: 1
+- UTC: 2026-11-17T06:59:57.981198+00:00
+- Python: 3.11.18
+- Executed tests: 81
+- Passed: 81
+- Skipped: 0
 - Failures: 0
 - Errors: 0
-- Elapsed seconds: 7.297
+- Elapsed seconds: 0.516
 
 These tests use fake model responses and mocked Docker processes. They do not measure model task quality.
 Windows symlink checks may be skipped if link creation is unavailable.
 
 ```text
+test_duplicate_runs_do_not_inflate_task_count (tests.test_benchmark.BenchmarkTests.test_duplicate_runs_do_not_inflate_task_count) ... ok
+test_empty_benchmark (tests.test_benchmark.BenchmarkTests.test_empty_benchmark) ... ok
+test_export_generates_json_and_markdown (tests.test_benchmark.BenchmarkTests.test_export_generates_json_and_markdown) ... ok
+test_first_failed_attempt_is_not_replaced (tests.test_benchmark.BenchmarkTests.test_first_failed_attempt_is_not_replaced) ... ok
+test_full_benchmark (tests.test_benchmark.BenchmarkTests.test_full_benchmark) ... ok
+test_missing_group_is_not_started (tests.test_benchmark.BenchmarkTests.test_missing_group_is_not_started) ... ok
+test_mixed_statuses_and_weighted_subtasks (tests.test_benchmark.BenchmarkTests.test_mixed_statuses_and_weighted_subtasks) ... ok
+test_partial_benchmark (tests.test_benchmark.BenchmarkTests.test_partial_benchmark) ... ok
+test_private_and_custom_runs_excluded (tests.test_benchmark.BenchmarkTests.test_private_and_custom_runs_excluded) ... ok
+test_export_calculates_metrics_only_once (tests.test_evaluation.ExportConsistencyTests.test_export_calculates_metrics_only_once) ... ok
+test_empty_evaluation_returns_safe_values (tests.test_evaluation.GlobalMetricsTests.test_empty_evaluation_returns_safe_values) ... ok
+test_global_metrics_aggregate_multiple_runs (tests.test_evaluation.GlobalMetricsTests.test_global_metrics_aggregate_multiple_runs) ... ok
 test_abort_records_failure_and_clears_pending_requests (tests.test_platform.PlatformTests.test_abort_records_failure_and_clears_pending_requests) ... ok
 test_append_updates_only_the_own_file (tests.test_platform.PlatformTests.test_append_updates_only_the_own_file) ... ok
 test_approved_tool_failure_is_logged (tests.test_platform.PlatformTests.test_approved_tool_failure_is_logged) ... ok
@@ -52,7 +64,7 @@ test_html_scripts_not_in_research_text (tests.test_platform.SecurityAndDataTests
 test_path_validation (tests.test_platform.SecurityAndDataTests.test_path_validation) ... ok
 test_primary_scenario_prompts_load_without_macos_noise (tests.test_platform.SecurityAndDataTests.test_primary_scenario_prompts_load_without_macos_noise) ... ok
 test_private_network_urls_are_blocked (tests.test_platform.SecurityAndDataTests.test_private_network_urls_are_blocked) ... ok
-test_symlink_validation (tests.test_platform.SecurityAndDataTests.test_symlink_validation) ... skipped 'Symlink creation not permitted on this Windows host'
+test_symlink_validation (tests.test_platform.SecurityAndDataTests.test_symlink_validation) ... ok
 test_hash_mismatch_stops_preview (tests.test_preview.PreviewTests.test_hash_mismatch_stops_preview) ... ok
 test_invalid_port_stops_before_launch (tests.test_preview.PreviewTests.test_invalid_port_stops_before_launch) ... ok
 test_preview_does_not_approve_or_modify_task_state (tests.test_preview.PreviewTests.test_preview_does_not_approve_or_modify_task_state) ... ok
@@ -84,8 +96,8 @@ test_json_script_data_is_not_javascript (tests.test_ui_check.JavaScriptRegressio
 test_python_string_escape_can_break_every_page_button (tests.test_ui_check.JavaScriptRegressionTests.test_python_string_escape_can_break_every_page_button) ... ok
 
 ----------------------------------------------------------------------
-Ran 69 tests in 7.299s
+Ran 81 tests in 0.516s
 
-OK (skipped=1)
+OK
 
 ```
