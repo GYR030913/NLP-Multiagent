@@ -72,6 +72,9 @@ def metrics(state):
             ),
             'fatal_error': run['fatal_error'],
             'model_calls': run['model_calls'],
+            'actions_used': run.get('actions_used', run['model_calls']),
+            'max_actions': run.get('max_actions'),
+            'budget_exhausted': run.get('budget_exhausted', False),
             'reported_tokens': run['tokens'],
             'provider': run['provider'],
             'model': run['model'],
@@ -205,8 +208,8 @@ def export(store, state):
         '',
         '## Per-run details',
         '',
-        '| Run | Status | Success | Elapsed seconds | Human wait | Subtasks | Model calls |',
-        '|---|---|---|---|---|---|---|'
+        '| Run | Status | Success | Elapsed seconds | Human wait | Subtasks | Model calls | Actions | Budget exhausted |',
+        '|---|---|---|---|---|---|---|---|---|'
     ]
 
     for row in report['runs']:
@@ -214,7 +217,9 @@ def export(store, state):
             f"| {row['run_id']} | {row['status']} | {row['success']} | "
             f"{row['duration_seconds']} | {row['human_wait_seconds']} | "
             f"{row['subtasks_completed']}/{row['subtasks_total']} | "
-            f"{row['model_calls']} |"
+            f"{row['model_calls']} | "
+            f"{row['actions_used']}/{row['max_actions']} | "
+            f"{row['budget_exhausted']} |"
         )
 
     lines += ['', '## Failures and review feedback', '']
@@ -224,6 +229,7 @@ def export(store, state):
     lines += ['', '## Memory evolution', '', 'Before/after SHA256 snapshots are recorded per run in metrics.json.',
               'Lessons live in agents/<id>/memory.jsonl with outcome labels; peer approval is not objective truth.', '',
               '## Limits', '', 'No inference about model quality is possible from offline harness tests.',
+              'The action budget is persisted per run; resuming cannot reset it.',
               'Reported token totals cover only API usage fields returned by completed calls, not failed requests/retries.',
               'Human wait is the union of pending-request intervals; it can overlap productive work by other agents.']
     (output / 'report.md').write_text('\n'.join(lines), encoding='utf-8')

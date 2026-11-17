@@ -34,6 +34,9 @@ class PlatformTests(unittest.TestCase):
         self.tools = Tools(self.store, self.config)
         self.engine = Engine(self.store, self.config, FakeClient(), self.tools)
         self.root = self.engine.submit('Build a tested artifact')
+        self.act(self.root, type='plan',
+                 criteria=['Deliver a tested artifact', 'Explain how to use it'],
+                 text='Initial test plan')
 
     def tearDown(self):
         self.temp.cleanup()
@@ -161,12 +164,12 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(self.engine.state['tasks'][self.root]['status'], 'reviewing')
 
     def test_missing_criteria_cannot_pass_review(self):
-        self.act(self.root, type='plan', criteria=['one', 'two'], text='Plan')
         review = self.finish(self.root, artifacts=[self.final_artifact()])
         event = self.tool(review, 'files.write', path='check.txt', content='checked')
         with self.assertRaises(ValueError):
             self.act(review, type='review', approved=True, feedback='ok',
-                     checks=[{'criterion': 'one', 'passed': True, 'evidence': [event['seq']]}])
+                     checks=[{'criterion': 'Deliver a tested artifact', 'passed': True,
+                              'evidence': [event['seq']]}])
 
     def test_user_can_reject_final_delivery(self):
         review = self.finish(self.root, artifacts=[self.final_artifact()])
@@ -240,9 +243,19 @@ class PlatformTests(unittest.TestCase):
             self.act(self.root, type='delegate', to='dev', description='work', criteria=['x'])
 
     def test_plan_cannot_repeat_without_doing_work(self):
-        self.act(self.root, type='plan', criteria=['specific outcome'], text='Plan')
         with self.assertRaisesRegex(ValueError, 'already has a plan'):
             self.act(self.root, type='plan', criteria=['reworded outcome'], text='Same plan')
+
+    def test_root_task_must_plan_before_tools_or_delegation(self):
+        root = self.engine.state['tasks'][self.root]
+        root['planned'] = False
+        with self.assertRaisesRegex(ValueError, 'Plan the root task'):
+            self.engine.apply(root, {'type': 'tool', 'name': 'files.write',
+                                     'args': {'path': 'too-early.txt', 'content': 'no'}})
+        context = self.engine.context(root)
+        self.assertIn('plan', context['allowed_actions'])
+        self.assertNotIn('tool', context['allowed_actions'])
+        self.assertNotIn('delegate', context['allowed_actions'])
 
     def test_dependency_waits_and_wakes_after_verified_completion(self):
         self.act(self.root, type='delegate', to='dev', description='Build', criteria=['exists'])
