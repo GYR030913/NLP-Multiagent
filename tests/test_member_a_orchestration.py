@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 from collab.config import Config
+from collab.contracts import HumanInteractionGateway, MemoryGateway, ToolGateway
 from collab.engine import Engine
 from collab.report import metrics
 from collab.store import Store
@@ -49,6 +50,14 @@ class MemberAOrchestrationTests(unittest.TestCase):
     def act(self, task_id, **action):
         self.engine.apply(self.engine.state['tasks'][task_id], action)
         self.store.save(self.engine.state)
+
+    def plan_root(self, task_id=None):
+        self.act(
+            task_id or self.root,
+            type='plan',
+            criteria=['The accepted deliverable is complete.'],
+            text='Use independent roles and verify the result.',
+        )
 
     def tool(self, task_id, name, **args):
         self.act(task_id, type='tool', name=name, args=args)
@@ -131,7 +140,13 @@ class MemberAOrchestrationTests(unittest.TestCase):
         ]
         self.assertEqual(action_types, ['plan', 'delegate'])
 
+    def test_teammate_gateways_are_structurally_compatible(self):
+        self.assertIsInstance(self.tools, ToolGateway)
+        self.assertIsInstance(self.store, MemoryGateway)
+        self.assertIsInstance(self.engine, HumanInteractionGateway)
+
     def test_multiple_dependencies_wake_only_after_every_prerequisite(self):
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -182,6 +197,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
             self.finish(self.root, reviewer='release')
 
     def test_cross_agent_dependency_cycle_is_rejected_atomically(self):
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -244,6 +260,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
 
     def test_depth_limit_does_not_reset_when_agent_changes(self):
         self.config.max_depth = 2
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -280,6 +297,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
         self.assertEqual(len(self.engine.state['tasks']), task_count)
 
     def test_rejection_after_three_reworks_fails_without_success_metrics(self):
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -321,6 +339,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
         )
 
     def test_restart_recovers_running_tasks_and_skips_waiting_states(self):
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -401,6 +420,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
         )
 
     def test_agent_direct_message_is_recipient_only(self):
+        self.plan_root()
         self.act(
             self.root,
             type='delegate',
@@ -478,6 +498,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
                 to='group',
                 text='Do not leak this private task.',
             )
+        self.plan_root(private_task)
         with self.assertRaisesRegex(ValueError, 'Private chats cannot'):
             self.act(
                 private_task,
@@ -492,7 +513,117 @@ class MemberAOrchestrationTests(unittest.TestCase):
             )['tasks'],
         )
 
+    def test_review_cannot_reuse_tool_evidence_from_an_earlier_review(self):
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Build the first artifact.',
+            criteria=['The first artifact exists.'],
+        )
+        first_work = self.engine.state['tasks'][self.root]['children'][-1]
+        first_review = self.finish(first_work, reviewer='qa')
+        old_evidence = self.tool(
+            first_review,
+            'files.write',
+            path='first-review.txt',
+            content='Only the first review was checked.',
+        )
+        self.act(
+            first_review,
+            type='review',
+            approved=True,
+            feedback='The first artifact passed.',
+            checks=[
+                {
+                    'criterion': 'The first artifact exists.',
+                    'passed': True,
+                    'evidence': [old_evidence['seq']],
+                }
+            ],
+        )
+
+        self.act(
+            self.root,
+            type='delegate',
+            to='release',
+            description='Build the second artifact.',
+            criteria=['The second artifact exists.'],
+        )
+        second_work = self.engine.state['tasks'][self.root]['children'][-1]
+        second_review = self.finish(second_work, reviewer='qa')
+        with self.assertRaisesRegex(ValueError, 'current task'):
+            self.act(
+                second_review,
+                type='review',
+                approved=True,
+                feedback='Attempt to reuse the first review.',
+                checks=[
+                    {
+                        'criterion': 'The second artifact exists.',
+                        'passed': True,
+                        'evidence': [old_evidence['seq']],
+                    }
+                ],
+            )
+        self.assertEqual(
+            self.engine.state['tasks'][second_work]['status'], 'reviewing'
+        )
+
+    def test_task_budget_is_checked_before_review_creation(self):
+        self.config.max_tasks = 2
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Fill the task budget.',
+            criteria=['The only child exists.'],
+        )
+        child = self.engine.state['tasks'][self.root]['children'][-1]
+        with self.assertRaisesRegex(ValueError, 'Task budget exhausted'):
+            self.finish(child, reviewer='qa')
+        self.assertEqual(len(self.engine.state['tasks']), 2)
+        self.assertEqual(self.engine.state['tasks'][child]['status'], 'running')
+        self.assertNotIn('submission', self.engine.state['tasks'][child])
+
+    def test_run_action_budget_does_not_reset_on_resume(self):
+        self.plan_root()
+        run = self.engine.state['runs']['r1']
+        run['max_actions'] = 1
+        self.engine.client = FakeClient(
+            [
+                {'type': 'message', 'to': 'group', 'text': 'first'},
+                {'type': 'message', 'to': 'group', 'text': 'second'},
+            ]
+        )
+
+        self.engine.run(steps=1)
+        self.engine.run(steps=1)
+
+        self.assertEqual(run['actions_used'], 1)
+        self.assertEqual(run['model_calls'], 1)
+        self.assertTrue(run['budget_exhausted'])
+        self.assertIn(self.root, self.engine.state['queue'])
+        self.assertTrue(
+            any(
+                event['kind'] == 'run_budget_exhausted'
+                for event in self.engine.state['events']
+            )
+        )
+
+    def test_plan_rejects_duplicate_acceptance_criteria(self):
+        with self.assertRaisesRegex(ValueError, 'duplicates'):
+            self.act(
+                self.root,
+                type='plan',
+                criteria=['Same condition.', 'Same condition.'],
+                text='Invalid duplicate plan.',
+            )
+
     def test_second_task_imports_artifact_from_first_task(self):
+        self.plan_root()
         self.tool(
             self.root,
             'files.write',
@@ -526,6 +657,7 @@ class MemberAOrchestrationTests(unittest.TestCase):
         self.assertEqual(metrics(self.engine.state)['task_completion_rate'], 1.)
 
         second = self.engine.submit('Extend the previous result')
+        self.plan_root(second)
         context = self.engine.context(self.engine.state['tasks'][second])
         self.assertIn(artifact, context['artifacts'])
         self.assertIn(self.root, context['tasks'])

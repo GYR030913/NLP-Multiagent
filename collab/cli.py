@@ -50,6 +50,14 @@ def locked(store):
 
 def status(engine):
     state = engine.state
+    for run in state['runs'].values():
+        if run['status'] == 'running':
+            print(
+                f"Run {run['id']}: actions "
+                f"{run.get('actions_used', run.get('model_calls', 0))}/"
+                f"{run.get('max_actions', engine.config.max_run_actions)}"
+                + (' BUDGET EXHAUSTED' if run.get('budget_exhausted') else '')
+            )
     for task in state['tasks'].values():
         print(f"{task['id']:>4} {task['owner']:<15} {task['status']:<22} {task['description'][:70]}")
     print('\nPending human requests:')
@@ -71,6 +79,11 @@ def observe(event):
         print(f"{kind}: {event['error']}", flush=True)
     elif kind == 'human_request':
         print('HUMAN REQUEST: ' + json.dumps(event['request'], ensure_ascii=False), flush=True)
+    elif kind == 'run_budget_exhausted':
+        print(
+            f"RUN BUDGET EXHAUSTED: {event['actions_used']}/{event['max_actions']} actions",
+            flush=True,
+        )
 
 
 def chat(engine):

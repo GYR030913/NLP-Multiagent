@@ -36,6 +36,9 @@ def metrics(state):
                 'subtasks_completed': completed,
                 'subtask_completion_rate': completed / len(tasks) if tasks else None,
                 'fatal_error': run['fatal_error'], 'model_calls': run['model_calls'],
+                'actions_used': run.get('actions_used', run['model_calls']),
+                'max_actions': run.get('max_actions'),
+                'budget_exhausted': run.get('budget_exhausted', False),
                 'reported_tokens': run['tokens'], 'provider': run['provider'], 'model': run['model'],
                 'memory_before': run['memory_before'], 'memory_after': run.get('memory_after', {})})
     return {'runs': rows, 'task_completion_rate': sum(r['success'] for r in rows) / len(rows) if rows else None,
@@ -84,10 +87,10 @@ def export(store, state):
         dump(delivery / 'delivery_manifest.json', manifest)
     report = metrics(state)
     lines = ['# Performance report', '', 'Success is human-accepted delivery after peer review; this is not an official instructor score.', '',
-             '| Run | Status | Success | Elapsed seconds | Human wait | Subtasks | Model calls |',
-             '|---|---|---|---|---|---|---|']
+             '| Run | Status | Success | Elapsed seconds | Human wait | Subtasks | Actions | Budget exhausted |',
+             '|---|---|---|---|---|---|---|---|']
     for row in report['runs']:
-        lines.append(f"| {row['run_id']} | {row['status']} | {row['success']} | {row['duration_seconds']} | {row['human_wait_seconds']} | {row['subtasks_completed']}/{row['subtasks_total']} | {row['model_calls']} |")
+        lines.append(f"| {row['run_id']} | {row['status']} | {row['success']} | {row['duration_seconds']} | {row['human_wait_seconds']} | {row['subtasks_completed']}/{row['subtasks_total']} | {row['actions_used']}/{row['max_actions']} | {row['budget_exhausted']} |")
     lines += ['', '## Failures and review feedback', '']
     for event in state['events']:
         if event['kind'] in {'action_error', 'model_error', 'review_result'}:
@@ -95,6 +98,7 @@ def export(store, state):
     lines += ['', '## Memory evolution', '', 'Before/after SHA256 snapshots are recorded per run in metrics.json.',
               'Lessons live in agents/<id>/memory.jsonl with outcome labels; peer approval is not objective truth.', '',
               '## Limits', '', 'No inference about model quality is possible from offline harness tests.',
+              'The action budget is persisted per run; resuming cannot reset it.',
               'Reported token totals cover only API usage fields returned by completed calls, not failed requests/retries.',
               'Human wait is the union of pending-request intervals; it can overlap productive work by other agents.']
     (output / 'report.md').write_text('\n'.join(lines), encoding='utf-8')

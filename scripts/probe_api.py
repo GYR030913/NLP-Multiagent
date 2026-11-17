@@ -21,7 +21,8 @@ def main():
     except ModelError as exc:
         print(str(exc))
         return 1
-    print(json.dumps({'connection_ok': result.get('status') == 'ok', 'usage': client.usage}))
+    print(json.dumps({'connection_ok': result.get('status') == 'ok',
+                      'transport': client.transport_used, 'usage': client.usage}))
     return 0 if result.get('status') == 'ok' else 1
 
 
