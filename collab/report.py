@@ -232,5 +232,5 @@ def export(store, state):
               'The action budget is persisted per run; resuming cannot reset it.',
               'Reported token totals cover only API usage fields returned by completed calls, not failed requests/retries.',
               'Human wait is the union of pending-request intervals; it can overlap productive work by other agents.']
-    (output / 'report.md').write_text('\n'.join(lines), encoding='utf-8')
+    (output / 'performance_report.md').write_text('\n'.join(lines), encoding='utf-8')
     return output
