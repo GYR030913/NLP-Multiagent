@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
    const max=Math.max(1,...data.rooms.map(r=>r.count));
    data.rooms.forEach(r=>{
     const bar=document.createElement("div");bar.textContent=`${r.name}: ${r.count}`;
-    bar.style.background="#dce8f5";bar.style.margin="4px 0";bar.style.padding="4px";bar.style.width=`${20+80*r.count/max}%`;
+    bar.style.background="#dce8f5";bar.style.margin="4px 0";bar.style.padding="4px 0";bar.style.whiteSpace="nowrap";bar.style.width=`${100*r.count/max}%`;
     get("usage-chart").appendChild(bar);
     const row=document.createElement("tr");[r.name,r.count,r.hours].forEach(v=>{const cell=document.createElement("td");cell.textContent=v;row.appendChild(cell);});get("usage-table").appendChild(row);
    });
