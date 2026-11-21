@@ -9,3 +9,6 @@ build/
 dist/
 __MACOSX/
 .idea/
+
+# Local observed booking snapshot used only by dashboard verification.
+fixes/dashboard/meeting_rooms/snapshot.json

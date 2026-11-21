@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Room Booking</title>
+<style>
+  body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 1rem; background:#f5f6f8; color:#222; }
+  h1 { font-size: 1.4rem; }
+  section { background:#fff; border:1px solid #ddd; border-radius:8px; padding:1rem; margin-bottom:1rem; }
+  h2 { font-size:1.1rem; margin-top:0; }
+  table { border-collapse: collapse; width:100%; margin-top:.5rem; }
+  th, td { border:1px solid #ddd; padding:.35rem .5rem; text-align:left; font-size:.9rem; }
+  th { background:#eef1f4; }
+  label { display:inline-block; margin-right:.75rem; margin-bottom:.4rem; font-size:.85rem; }
+  input { padding:.25rem; }
+  button { padding:.35rem .7rem; border:1px solid #2c6bed; background:#2c6bed; color:#fff; border-radius:5px; cursor:pointer; }
+  button.cancel { background:#c0392b; border-color:#c0392b; }
+  .msg { margin:.6rem 0; padding:.5rem; border-radius:5px; }
+  .ok { background:#e6f7ea; color:#186a3b; }
+  .error { background:#fdecea; color:#a12b20; }
+  .free { color:#186a3b; font-weight:600; }
+  .busy { color:#a12b20; font-weight:600; }
+  .stats { display:flex; gap:1.5rem; }
+  .stat { text-align:center; }
+  .stat b { display:block; font-size:1.5rem; }
+</style>
+</head>
+<body>
+<h1>Meeting Room Booking</h1>
+<div id="message" class="msg"></div>
+
+<section>
+  <h2>Meeting rooms</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Capacity</th><th>Location</th><th>Equipment</th></tr></thead>
+    <tbody id="rooms-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Check availability</h2>
+  <label>Date <input type="date" id="avail-date"></label>
+  <label>Start <input type="time" id="avail-start" value="10:00"></label>
+  <label>End <input type="time" id="avail-end" value="11:00"></label>
+  <button id="btn-availability">Check</button>
+  <p id="avail-summary"></p>
+  <table>
+    <thead><tr><th>Room</th><th>Status</th><th>Conflicts</th></tr></thead>
+    <tbody id="avail-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Create a booking</h2>
+  <label>Room <select id="book-room"></select></label>
+  <label>Date <input type="date" id="book-date"></label>
+  <label>Start <input type="time" id="book-start" value="10:00"></label>
+  <label>End <input type="time" id="book-end" value="11:00"></label>
+  <label>Booked by <input type="text" id="book-booker" placeholder="Your name"></label>
+  <label>Title <input type="text" id="book-title" placeholder="Meeting title"></label>
+  <button id="btn-book">Book</button>
+</section>
+
+<section>
+  <h2>Bookings</h2>
+  <button id="btn-refresh-bookings">Refresh</button>
+  <table>
+    <thead><tr><th>ID</th><th>Room</th><th>Start</th><th>End</th><th>Booked by</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody id="bookings-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Dashboard</h2>
+  <label>Date <input type="date" id="dash-date"></label>
+  <button id="btn-refresh-dash">Refresh counts</button>
+  <div class="stats">
+    <div class="stat"><b id="dash-rooms">-</b>Total rooms</div>
+    <div class="stat"><b id="dash-active">-</b>Active bookings</div>
+    <div class="stat"><b id="dash-cancelled">-</b>Cancelled bookings</div>
+  </div>
+</section>
+
+<section aria-label="Date range usage dashboard">
+<h2>Room usage by date range</h2>
+<p>Asia/Hong_Kong; both dates inclusive. Duration uses clipped active intervals. Cancellation rate = cancelled / all overlapping records.</p>
+<label>From <input type="date" id="range-start"></label>
+<label>Through <input type="date" id="range-end"></label>
+<button id="range-refresh">Update usage</button>
+<p id="range-status" role="status"></p><p id="range-summary"></p>
+<div id="usage-chart" aria-label="Active booking frequency chart"></div>
+<table><thead><tr><th>Room</th><th>Active bookings</th><th>Reserved hours</th></tr></thead><tbody id="usage-table"></tbody></table>
+<p id="range-advice"></p><small id="range-provenance"></small>
+</section>
+<script src="app.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>
