@@ -61,6 +61,7 @@ def metrics(state):
                 run['status'] == 'completed'
                 and not run['fatal_error']
             ),
+            'automated_test_passed': run['status'] == 'test_passed',
             'duration_seconds': round(
                 seconds(run['started_at'], end), 3
             ),
@@ -76,6 +77,8 @@ def metrics(state):
             'max_actions': run.get('max_actions'),
             'budget_exhausted': run.get('budget_exhausted', False),
             'reported_tokens': run['tokens'],
+            'transport_attempts': run.get('transport_attempts', 0),
+            'legacy_transport_attempts_unknown': run.get('legacy_transport_attempts_unknown', False),
             'provider': run['provider'],
             'model': run['model'],
             'memory_before': run['memory_before'],
@@ -148,6 +151,32 @@ def export(store, state):
     dump(output / 'metrics.json', report)
     dump(output / 'sources.json', state['sources'])
     dump(output / 'state.json', state)
+    dump(output / 'bundles.json', state.get('bundles', {}))
+    from .memory import Memory
+    memory = Memory(store,state)
+    dump(output / 'memory-public.json', [memory.effective(r) for r in memory.records().values() if r['origin_scope']=='group_public' and r['visibility']=='group_public'])
+    dump(output / 'memory-internal.json', [memory.effective(r) for r in memory.records().values()])
+    dump(output / 'claims.json', state.get('claims', {}))
+    dump(output / 'datasets.json', state.get('datasets', {}))
+    for source in state['sources'].values():
+        if source.get('content_ref'):
+            raw = (store.path / 'sources' / source['content_ref']).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != source['sha256']:
+                raise ValueError('Source snapshot integrity check failed during export')
+            dest = output / 'source-snapshots' / source['sha256']
+            dest.parent.mkdir(exist_ok=True)
+            dest.write_bytes(raw)
+    for item in state.get('datasets',{}).values():
+        raw = (store.path / 'datasets' / item['sha256']).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != item['sha256']:
+            raise ValueError('Dataset snapshot integrity check failed during export')
+        dest = output / 'dataset-snapshots' / item['sha256']
+        dest.parent.mkdir(exist_ok=True)
+        dest.write_bytes(raw)
+    for bundle in state.get('bundles', {}).values():
+        from .bundles import validate
+        validate(store, state, bundle['id'])
+        dump(output / 'bundles' / (bundle['id'] + '.json'), bundle)
     with (output / 'dialogue.jsonl').open('w', encoding='utf-8') as handle:
         for event in state['events']:
             handle.write(json.dumps(event, ensure_ascii=False) + '\n')
@@ -227,7 +256,7 @@ def export(store, state):
         if event['kind'] in {'action_error', 'model_error', 'review_result'}:
             lines += [f"- Event {event['seq']}: {json.dumps(event, ensure_ascii=False)}"]
     lines += ['', '## Memory evolution', '', 'Before/after SHA256 snapshots are recorded per run in metrics.json.',
-              'Lessons live in agents/<id>/memory.jsonl with outcome labels; peer approval is not objective truth.', '',
+              'Versioned memories live in memory-v2/events.jsonl; memory-public.json separates candidates, effective status and evidence. Legacy JSONL remains unverified. Outcome labels do not establish truth.', '',
               '## Limits', '', 'No inference about model quality is possible from offline harness tests.',
               'The action budget is persisted per run; resuming cannot reset it.',
               'Reported token totals cover only API usage fields returned by completed calls, not failed requests/retries.',

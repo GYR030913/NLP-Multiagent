@@ -1,0 +1,36 @@
+{
+  "id": "delivery.release",
+  "version": "1.0.0",
+  "description": "Release a complete delivery",
+  "applicability": "When the task needs these capabilities; suggested method, not a fixed scenario answer",
+  "compatible_roles": [
+    "lead",
+    "release",
+    "editor",
+    "marketing"
+  ],
+  "capabilities": [
+    "release"
+  ],
+  "input_schema": {
+    "type": "object",
+    "description": "Current task contract and visible evidence"
+  },
+  "output_contract": "Task actions and evidence-backed artifacts; no automatic approval",
+  "required_tools": [
+    "artifact.validate_bundle",
+    "artifact.publish_bundle",
+    "git.status"
+  ],
+  "forbidden_operations": [
+    "modify role originals",
+    "bypass approvals",
+    "fabricate evidence"
+  ],
+  "review_checks": [
+    "requirements covered",
+    "current-version evidence",
+    "privacy and budget preserved"
+  ],
+  "content_sha256": "4487764a29fc04614bc1abc4fe785fcc4de6ad556052e9097f1da409abcf490f"
+}

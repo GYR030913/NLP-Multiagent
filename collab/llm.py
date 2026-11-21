@@ -29,9 +29,11 @@ class Client:
         self.config = config
         self.usage = {}
         self.transport_used = None
+        self.attempts_last_call = 0
 
     def generate(self, messages):
         self.usage = {}
+        self.attempts_last_call = 0
         if not self.config.api_key:
             raise ModelError('Missing LLM_API_KEY. Configure .env locally first.')
 
@@ -91,6 +93,7 @@ class Client:
         last_error = None
         for transport in self.transport_order():
             try:
+                self.attempts_last_call += 1
                 if transport == 'curl':
                     return self.request_with_curl(request)
                 return self.request_with_urllib(request)

@@ -85,7 +85,9 @@ class PlatformTests(unittest.TestCase):
         second = self.engine.submit('Extend the previous implementation')
         context = self.engine.context(self.engine.state['tasks'][second])
         self.assertIn(artifact, context['artifacts'])
-        self.assertTrue(context['memory'])
+        self.assertFalse(context['memory'])  # A completed outcome does not validate its lesson.
+        from collab.memory import Memory
+        self.assertTrue(Memory(self.store, self.engine.state).records())
         self.assertEqual(len(self.engine.state['runs']), 2)
 
     def test_group_survives_reload(self):

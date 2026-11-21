@@ -1,0 +1,3 @@
+# Independent claim and uncertainty checking
+
+Define the claim and relevant population/operating conditions. Independently read cited passages, actively look for opposing evidence and distinguish original study results from tool marketing. Check dates, sampling, language/domain shift and uncertainty. For detection claims, separate sensitivity, specificity, false positives and the population base rate; use a clearly declared hypothetical dataset to recompute examples. A detector score cannot prove an individual author's conduct. Retain counterevidence even when it complicates the editorial conclusion. Publish a criterion-to-evidence review with scope limitations.

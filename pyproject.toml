@@ -14,3 +14,6 @@ collab = "collab.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["collab*"]
+
+[tool.setuptools.package-data]
+collab = ["runtime_skills/*/manifest.json", "runtime_skills/*/SKILL.md"]

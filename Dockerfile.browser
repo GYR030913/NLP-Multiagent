@@ -1,0 +1,7 @@
+FROM mcr.microsoft.com/playwright/python:v1.56.0-noble@sha256:a7f6cf3ae520c9d670ad956572c13747ed5abdbba5123a01526f873ed1662528
+COPY requirements.browser.txt /opt/collab/requirements.txt
+RUN pip install --no-cache-dir -r /opt/collab/requirements.txt
+COPY collab/browser_worker.py collab/preview_worker.py /opt/collab/
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp
+WORKDIR /workspace
+USER 65534:65534

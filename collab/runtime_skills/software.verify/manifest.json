@@ -1,0 +1,36 @@
+{
+  "id": "software.verify",
+  "version": "1.0.0",
+  "description": "Independent software verification",
+  "applicability": "When the task needs these capabilities; suggested method, not a fixed scenario answer",
+  "compatible_roles": [
+    "lead",
+    "qa",
+    "release"
+  ],
+  "capabilities": [
+    "software_verify"
+  ],
+  "input_schema": {
+    "type": "object",
+    "description": "Current task contract and visible evidence"
+  },
+  "output_contract": "Task actions and evidence-backed artifacts; no automatic approval",
+  "required_tools": [
+    "artifact.import_bundle",
+    "code.run",
+    "ui.check",
+    "browser.verify"
+  ],
+  "forbidden_operations": [
+    "modify role originals",
+    "bypass approvals",
+    "fabricate evidence"
+  ],
+  "review_checks": [
+    "requirements covered",
+    "current-version evidence",
+    "privacy and budget preserved"
+  ],
+  "content_sha256": "7a6a42cdee7343a31384bbe6372543078a79cb6517280996270aabd3d9755704"
+}

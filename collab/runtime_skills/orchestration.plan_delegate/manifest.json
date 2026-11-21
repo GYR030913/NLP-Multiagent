@@ -1,0 +1,40 @@
+{
+  "id": "orchestration.plan_delegate",
+  "version": "1.0.0",
+  "description": "Plan and delegate",
+  "applicability": "When the task needs these capabilities; suggested method, not a fixed scenario answer",
+  "compatible_roles": [
+    "lead",
+    "dev",
+    "qa",
+    "release",
+    "chief_editor",
+    "reporter",
+    "fact_checker",
+    "editor",
+    "fund_manager",
+    "research",
+    "risk",
+    "marketing"
+  ],
+  "capabilities": [
+    "planning"
+  ],
+  "input_schema": {
+    "type": "object",
+    "description": "Current task contract and visible evidence"
+  },
+  "output_contract": "Task actions and evidence-backed artifacts; no automatic approval",
+  "required_tools": [],
+  "forbidden_operations": [
+    "modify role originals",
+    "bypass approvals",
+    "fabricate evidence"
+  ],
+  "review_checks": [
+    "requirements covered",
+    "current-version evidence",
+    "privacy and budget preserved"
+  ],
+  "content_sha256": "a1da5d245e12077e44926b07709bb4c305059a4eda34b19c072fda1ce42ca3a5"
+}

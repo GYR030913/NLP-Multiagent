@@ -1,0 +1,3 @@
+# Simulated portfolio allocation and independent arithmetic
+
+Establish horizon, liquidity, loss tolerance, experience and permitted assets from the human or explicitly labelled simulation assumptions. Research dated primary information; distinguish facts from expected returns. Register allocation inputs as a versioned dataset with provenance. Use Decimal calculations for weights, HKD amounts, dated HKD/USD assumptions, cash and fees. Independently reproduce totals and downside scenarios, concentration and FX exposure. No precise volatility/correlation without an actual suitable time series. No broker or trade calls. Explain choices and limitations in terms a client can understand.

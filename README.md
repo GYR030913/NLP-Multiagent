@@ -6,6 +6,24 @@
 
 **状态：用户已在本地终端验证接口、Docker 内执行隔离和真实搜索；离线测试可运行。六个任务的真实完成率、完整交付质量与 GitHub 推送尚未完成实测，不能据此声称高分。**
 
+## M0–M2 增量实现
+
+本地实现分支为 `codex/m0-m2-harness`。任务契约 v2、工具/skill 注册、批量产物、独立浏览器验证及本机预览租约已加入；实际阶段出口及仍需人类验收的事项见 [实施记录](docs/m0-m2-implementation.md)。本机开发验证使用 `runtime/development_m2`，原运行目录不自动迁移或覆盖。
+
+交互执行统一使用 `/resume`（默认 30 步）、`/resume N` 或 `/resume --continuous`。连续模式不会因内部批次结束暂停，但遇人工请求、总预算耗尽、完成或阻塞错误会停止；不会自动批准或重置预算。旧状态先复制，再显式执行 `migrate --dry-run` 和 `migrate`。
+
+浏览器镜像需单独构建：`docker build -f Dockerfile.browser -t campus-collab-browser:local .`。原 Python 沙箱保持独立。新增依赖只在浏览器镜像安装，核心不要求宿主安装 Playwright。
+
+当前成功任务、失败原因和修复复测结果见 [成功与失败改进记录](docs/success-and-failure-record.md)。
+
+## M3–M4 增量实现
+
+已加入有来源的短期工作集、带状态与作用域的长期记忆、反证/有效期/恢复机制，以及网页/PDF 正文、精确引用、论断台账、不可变数据集和有限分析工具。完整操作说明见 [记忆管理](docs/memory-management.md)，工具、依赖与实际验证边界见 [M3–M4 实施记录](docs/m3-m4-implementation.md)。新增六个运行时研究、核查、金融和演示 skills；自动提升 prompt/skill 属于后续 M6。
+
+PDF 解析镜像单独构建：`docker build -f Dockerfile.document -t campus-collab-document:local .`。`pypdf` 固定安装在离线解析镜像内。`CONTEXT_INPUT_BUDGET` 默认 24000 估算输入 token；`MEMORY_ENABLED=0`、`CONTEXT_COMPACTION_ENABLED=0` 可供明确的开发对照，不会删除证据。
+
+六题开发自测在隔离目录执行，操作员测试通过与真实人工验收分别记录。当前连续性验证使用 `runtime/continuity_m3_m4_20261121`，继承已验收的预约系统再进行 Task 2；先前冷启动失败保留，不能混算为从零六题全部成功。
+
 ## 1. 环境配置
 
 Python 3.11+；平台本身仅使用标准库，无须安装第三方 Python 包。应显式使用3.11+解释器或对应的虚拟环境。
@@ -92,6 +110,7 @@ python -m collab chat software
 | `/answer q1 内容` | 回答澄清问题 |
 | `/approve q1`、`/reject q1 原因` | 批准/拒绝工具操作或最终验收 |
 | `/resume 30` | 最多再执行 30 个模型动作 |
+| `/resume --continuous` | 在剩余总预算内连续执行，遇停止条件交回控制权 |
 | `/status`、`/export`、`/quit` | 状态、导出和退出 |
 
 根工作任务必须先通过`plan`提交非空且不重复的验收条件，之后才能使用工具、委派或提交。澄清、审批和验收后需要`/resume`才继续。单次运行最多120步、默认30步；整个目标另有持久化的360次模型动作硬预算，恢复不会重置。预算耗尽后明确标记且不计为完成。Ctrl+C保存已持久化状态，随后可恢复。不要同时对同一群组启动两个写入进程。

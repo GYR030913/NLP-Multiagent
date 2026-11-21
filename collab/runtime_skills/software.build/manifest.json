@@ -1,0 +1,36 @@
+{
+  "id": "software.build",
+  "version": "1.0.0",
+  "description": "Build software",
+  "applicability": "When the task needs these capabilities; suggested method, not a fixed scenario answer",
+  "compatible_roles": [
+    "lead",
+    "dev"
+  ],
+  "capabilities": [
+    "software_build"
+  ],
+  "input_schema": {
+    "type": "object",
+    "description": "Current task contract and visible evidence"
+  },
+  "output_contract": "Task actions and evidence-backed artifacts; no automatic approval",
+  "required_tools": [
+    "files.read",
+    "files.write",
+    "files.replace",
+    "code.run",
+    "artifact.publish_bundle"
+  ],
+  "forbidden_operations": [
+    "modify role originals",
+    "bypass approvals",
+    "fabricate evidence"
+  ],
+  "review_checks": [
+    "requirements covered",
+    "current-version evidence",
+    "privacy and budget preserved"
+  ],
+  "content_sha256": "f44d55b92ecb92aad21e6a92e2fa381a3d251563f4a47e5b12d9f02463c33ab9"
+}

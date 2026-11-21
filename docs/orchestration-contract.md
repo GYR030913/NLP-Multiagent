@@ -76,6 +76,8 @@ memory_gateway.snapshot()
 
 `recall` 只能读取指定 Agent 的记忆。`remember` 写入的 `outcome` 至少区分 `peer_approved`、`human_accepted`、`review_rejected` 和 `human_rejected`。`snapshot()` 返回记忆文件到SHA256的映射，用于记录一次运行前后的变化。
 
+M1 的 Store 增加可选 `private_task` 参数；私有任务使用对应目录，公共调用默认排除旧记录中可识别的私信经验。状态 schema v2 必须显式迁移；旧私有 workspace 的归属不明时迁移拒绝自动放行。原有三个位置参数调用仍兼容。
+
 ## A 调用 D：HumanInteractionGateway
 
 ```python

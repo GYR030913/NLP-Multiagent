@@ -716,7 +716,9 @@ class MemberAOrchestrationTests(unittest.TestCase):
                 for event in context['recent_events']
             )
         )
-        self.assertTrue(context['memory'])
+        self.assertFalse(context['memory'])  # No unrelated or automatically trusted lessons.
+        from collab.memory import Memory
+        self.assertTrue(Memory(self.store, self.engine.state).records())
 
         imported = self.tool(
             second,

@@ -29,6 +29,12 @@ class Config:
     max_output_tokens: int = 8192
     request_timeout_seconds: float = 120
     transport: str = 'auto'
+    no_progress_limit: int = 5
+    browser_image: str = 'campus-collab-browser:local'
+    document_image: str = 'campus-collab-document:local'
+    input_budget_tokens: int = 24000
+    memory_enabled: bool = True
+    compaction_enabled: bool = True
 
     @classmethod
     def from_env(cls):
@@ -54,4 +60,10 @@ class Config:
                    max_output_tokens=int(os.getenv('LLM_MAX_OUTPUT_TOKENS', '8192')),
                    request_timeout_seconds=float(os.getenv('LLM_REQUEST_TIMEOUT_SECONDS', '120')),
                    max_run_actions=int(os.getenv('LLM_MAX_RUN_ACTIONS', '360')),
-                   transport=transport)
+                   transport=transport,
+                   no_progress_limit=int(os.getenv('LLM_NO_PROGRESS_LIMIT', '5')),
+                   browser_image=os.getenv('BROWSER_SANDBOX_IMAGE', 'campus-collab-browser:local'),
+                   document_image=os.getenv('DOCUMENT_SANDBOX_IMAGE', 'campus-collab-document:local'),
+                   input_budget_tokens=int(os.getenv('CONTEXT_INPUT_BUDGET', '24000')),
+                   memory_enabled=os.getenv('MEMORY_ENABLED', '1') != '0',
+                   compaction_enabled=os.getenv('CONTEXT_COMPACTION_ENABLED', '1') != '0')
