@@ -333,7 +333,7 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(report['task_completion_rate'], 0.)
         self.assertNotIn('.env', [p.name for p in output.rglob('*')])
         report_text = (
-            output / 'report.md'
+            output / 'performance_report.md'
         ).read_text(encoding='utf-8')
 
         self.assertIn('## Global metrics', report_text)

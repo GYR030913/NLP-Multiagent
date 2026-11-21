@@ -261,7 +261,7 @@ Preserve the following evidence where available:
 - dialogue.jsonl
 - dialogue.md
 - metrics.json
-- report.md
+- performance_report.md
 - sources.json
 - Published artifacts
 - Delivery manifests

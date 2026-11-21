@@ -1,0 +1,2 @@
+# Optional; core CLI remains standard-library only.
+gradio>=6.0,<7
