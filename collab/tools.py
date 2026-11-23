@@ -121,7 +121,8 @@ files.replace {path,old,new,expected_count:1} performs a small exact edit. Prefe
 code.run {argv:["python","-m","unittest","discover"],timeout:60} [isolated Docker; no network].
 ui.check {path:"app.py or page.html or client.js"} [static Node --check; does not execute target code].
 web.search {query,topic?:"general|news|finance",time_range?:"day|week|month|year",include_domains?:["hkust.edu.hk"]} [Tavily, keyless if no search key]; web.fetch {url} [public HTTPS, text/HTML only].
-artifact.publish {path,description} -> immutable artifact ID; artifact.import {id,path} -> own workspace.
+artifact.publish {path,description} -> immutable artifact ID; artifact.list {} -> published artifacts;
+artifact.import {id,path} -> own workspace.
 git.init {}; git.status {}; git.diff {}; git.commit {message} [own container repository].
 git.push {url:"https://github.com/OWNER/REPO.git",branch:"main"} [human approval, network, optional GITHUB_TOKEN].
 Do not attempt to execute host commands. Use Python standard library or dependencies already in sandbox.
@@ -232,15 +233,26 @@ class Tools:
                     'description': args.get('description', ''), 'time': now()}
             state['artifacts'][artifact_id] = item
             return item
+        if name == 'artifact.list':
+            # Let teammates discover published artifacts without guessing IDs.
+            return [{'id': item['id'], 'owner': item['owner'], 'path': item['path'],
+                     'description': item.get('description', ''), 'time': item['time'],
+                     'sha256': item['sha256']}
+                    for item in state['artifacts'].values()]
         if name == 'artifact.import':
-            item = state['artifacts'][args['id']]
+            artifact_id = args['id']
+            if artifact_id not in state['artifacts']:
+                known = ', '.join(sorted(state['artifacts'])) or 'none'
+                raise ValueError(f'Unknown artifact {artifact_id!r}; published artifacts: {known}. '
+                                 'Ask the owner to publish, or call artifact.list first.')
+            item = state['artifacts'][artifact_id]
             data = (self.store.path / 'artifacts' / item['sha256']).read_bytes()
             if hashlib.sha256(data).hexdigest() != item['sha256']:
                 raise ValueError('Artifact integrity check failed')
             path = safe_path(root, args['path'])
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-            return {'imported': args['id'], 'path': args['path']}
+            return {'imported': artifact_id, 'path': args['path']}
         if name == 'web.search':
             if not isinstance(args.get('query'), str) or not 1 <= len(args['query']) <= 1000:
                 raise ValueError('Search query must contain 1-1000 characters')

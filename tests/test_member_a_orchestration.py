@@ -571,6 +571,138 @@ class MemberAOrchestrationTests(unittest.TestCase):
             self.engine.state['tasks'][second_work]['status'], 'reviewing'
         )
 
+    def test_root_delivery_may_cite_evidence_from_reviews_below_it(self):
+        """A root task coordinates, so its evidence is the review of delegated work."""
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Build the artifact.',
+            criteria=['The artifact exists.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.tool(work, 'files.write', path='app.txt', content='The artifact.')
+        published = self.tool(
+            work, 'artifact.publish', path='app.txt', description='The artifact'
+        )
+        review = self.finish(work, reviewer='qa', artifacts=[published['result']['id']])
+        evidence = self.tool(review, 'files.write', path='check.txt', content='Checked.')
+        self.act(
+            review,
+            type='review',
+            approved=True,
+            feedback='Verified',
+            checks=[
+                {
+                    'criterion': 'The artifact exists.',
+                    'passed': True,
+                    'evidence': [evidence['seq']],
+                }
+            ],
+        )
+        # The root task may now cite the review's own tool result.
+        self.act(
+            self.root,
+            type='finish',
+            summary='Delivered.',
+            lesson='Cite the independent review evidence.',
+            artifacts=[published['result']['id']],
+            evidence=[evidence['seq']],
+            reviewer='dev',
+        )
+        self.assertEqual(self.engine.state['tasks'][self.root]['status'], 'reviewing')
+
+    def test_root_delivery_still_rejects_unrelated_task_evidence(self):
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Build the artifact.',
+            criteria=['The artifact exists.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.tool(work, 'files.write', path='app.txt', content='The artifact.')
+        published = self.tool(
+            work, 'artifact.publish', path='app.txt', description='The artifact'
+        )
+        review = self.finish(work, reviewer='qa', artifacts=[published['result']['id']])
+        evidence = self.tool(review, 'files.write', path='check.txt', content='Checked.')
+        self.act(
+            review,
+            type='review',
+            approved=True,
+            feedback='Verified',
+            checks=[
+                {
+                    'criterion': 'The artifact exists.',
+                    'passed': True,
+                    'evidence': [evidence['seq']],
+                }
+            ],
+        )
+        with self.assertRaisesRegex(ValueError, 'current task'):
+            self.act(
+                self.root,
+                type='finish',
+                summary='Delivered.',
+                lesson='Cite the independent review evidence.',
+                artifacts=[published['result']['id']],
+                evidence=[self.tool(work, 'files.write', path='work.txt',
+                                    content='Work log.')['seq']],
+                reviewer='dev',
+            )
+
+    def test_message_wakes_a_teammate_waiting_for_children(self):
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Build the artifact.',
+            criteria=['The artifact exists.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.act(work, type='plan', criteria=['Deliver.'], text='Scope agreed.')
+        # dev delegates its own work, so it has a pending child and may wait.
+        self.act(
+            work,
+            type='delegate',
+            to='qa',
+            description='Check the artifact.',
+            criteria=['The artifact was checked.'],
+        )
+        self.act(work, type='wait')
+        self.assertEqual(
+            self.engine.state['tasks'][work]['status'], 'waiting_for_children'
+        )
+        self.act(
+            self.root,
+            type='message',
+            to='dev',
+            text='Please publish the file so QA can import it.',
+        )
+        self.assertEqual(self.engine.state['tasks'][work]['status'], 'running')
+
+    def test_unknown_action_type_error_names_the_valid_types(self):
+        self.plan_root()
+        with self.assertRaisesRegex(ValueError, 'artifact.list'):
+            self.act(self.root, type='artifact.list')
+
+    def test_unknown_artifact_error_lists_published_ids(self):
+        self.plan_root()
+        with self.assertRaisesRegex(ValueError, 'Published artifacts'):
+            self.act(
+                self.root,
+                type='finish',
+                summary='Delivered.',
+                lesson='Publish before finishing.',
+                artifacts=['a99'],
+                evidence=[],
+                reviewer='dev',
+            )
+
     def test_task_budget_is_checked_before_review_creation(self):
         self.config.max_tasks = 2
         self.plan_root()

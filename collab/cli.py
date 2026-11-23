@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from contextlib import contextmanager
 from .config import Config
@@ -67,20 +68,36 @@ def status(engine):
     print(f"\nQueue: {len(state['queue'])}. Use resume to continue. Export includes complete dialogue and artifacts.")
 
 
+def safe_print(text, **kwargs):
+    """Print to a Windows console that may not accept the model's Unicode.
+
+    Agent messages can contain emoji or other characters outside the active
+    code page. Printing must never abort a run, so unencodable characters are
+    replaced instead of raising.
+    """
+    stream = kwargs.get('file') or sys.stdout
+    encoding = getattr(stream, 'encoding', None) or 'ascii'
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        text = text.encode(encoding, errors='replace').decode(encoding, errors='replace')
+    print(text, **kwargs)
+
+
 def observe(event):
     kind = event['kind']
     if kind == 'agent_action':
         action = event['action']
         detail = action.get('name', action.get('to', ''))
-        print(f"[{event['seq']}] {event['agent']}/{event['task']}: {action['type']} {detail}", flush=True)
+        safe_print(f"[{event['seq']}] {event['agent']}/{event['task']}: {action['type']} {detail}", flush=True)
     elif kind == 'message':
-        print(f"{event['sender']} -> {event['to']}: {event['text']}", flush=True)
+        safe_print(f"{event['sender']} -> {event['to']}: {event['text']}", flush=True)
     elif kind in {'action_error', 'model_error'}:
-        print(f"{kind}: {event['error']}", flush=True)
+        safe_print(f"{kind}: {event['error']}", flush=True)
     elif kind == 'human_request':
-        print('HUMAN REQUEST: ' + json.dumps(event['request'], ensure_ascii=False), flush=True)
+        safe_print('HUMAN REQUEST: ' + json.dumps(event['request'], ensure_ascii=False), flush=True)
     elif kind == 'run_budget_exhausted':
-        print(
+        safe_print(
             f"RUN BUDGET EXHAUSTED: {event['actions_used']}/{event['max_actions']} actions",
             flush=True,
         )

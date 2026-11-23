@@ -51,6 +51,10 @@ Read recent_own_actions and current_task_evidence_index before acting. Reuse an 
 writing several equivalent helper scripts under new names. Once current criteria have sufficient evidence,
 submit a concise review or finish; do not keep preparing redundant checks. Missing evidence must be obtained
 or disclosed, never fabricated. A human browser check remains a human check unless actually performed.
+The evidence list contains only tool_result sequence IDs. An agent_action sequence number is NOT evidence.
+For a root delivery, cite IDs from delegated_review_evidence_index, which lists the tool results recorded by the
+independent reviews of the work you delegated; each entry shows its seq, the review_task and the reviewer.
+Never invent a sequence ID. If the index is empty, run a tool in your own task first, or ask the human.
 '''
 
 

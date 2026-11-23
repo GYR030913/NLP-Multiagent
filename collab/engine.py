@@ -149,6 +149,12 @@ class Engine:
                 if 'output' in result:
                     item['output_tail'] = str(result['output'])[-1200:]
             evidence.append(item)
+        delegated_evidence = []
+        if task['kind'] == 'work' and task['parent'] is None:
+            # A root task coordinates rather than executes, so its own evidence
+            # is the independent review of the work it delegated. Without this
+            # index the model has no valid IDs to cite and invents them.
+            delegated_evidence = self.delegated_evidence(task['id'])
         root_needs_plan = task['kind'] == 'work' and task['parent'] is None and not task.get('planned')
         if task['kind'] == 'review':
             allowed = ['tool', 'message', 'ask', 'review']
@@ -164,6 +170,7 @@ class Engine:
         return {'current_task': task, 'tasks': visible_tasks, 'roles': self.state['roles'],
                 'allowed_actions': allowed, 'recent_own_actions': recent_actions,
                 'current_task_evidence_index': evidence[-25:],
+                'delegated_review_evidence_index': delegated_evidence[-25:],
                 'recent_events': messages[-60:], 'artifacts': {} if task['private'] else self.state['artifacts'],
                 'sources': [{k: v for k, v in item.items() if k != 'text'} for item in self.state['sources'].values()
                             if not item.get('private') or item['agent'] == agent],
@@ -275,6 +282,7 @@ class Engine:
             if not isinstance(action.get('text'), str) or not action['text'].strip():
                 raise ValueError('Message text must be nonempty')
             self.event('message', sender=agent, to=recipient, text=action['text'], task=task['id'])
+            self.wake_recipient(recipient)
         elif kind == 'delegate':
             if task['kind'] == 'review' or task['private']:
                 raise ValueError('Review/private tasks cannot delegate')
@@ -312,14 +320,18 @@ class Engine:
                 raise ValueError('Artifacts must be a list of published artifact IDs')
             for artifact_id in action.get('artifacts', []):
                 if artifact_id not in self.state['artifacts']:
-                    raise ValueError('Unknown artifact')
+                    known = ', '.join(sorted(self.state['artifacts'])) or 'none'
+                    raise ValueError(f'Unknown artifact {artifact_id!r}. Published artifacts: {known}. '
+                                     'Publish the file with artifact.publish first, then reference its ID. '
+                                     'Call artifact.list to see the current IDs.')
             artifact_paths = {}
             for artifact_id in action.get('artifacts', []):
                 item = self.state['artifacts'][artifact_id]
                 if item['path'] in artifact_paths and artifact_paths[item['path']] != item['sha256']:
                     raise ValueError('Choose only one final version of each artifact path')
                 artifact_paths[item['path']] = item['sha256']
-            self.validate_evidence(action.get('evidence', []), task_id=task['id'], agent_id=agent)
+            self.validate_evidence(action.get('evidence', []), task_id=task['id'], agent_id=agent,
+                                   allow_review_evidence=task['parent'] is None)
             self.tools.validate_artifacts(self.state, action.get('artifacts', []))
             reviewer = action.get('reviewer')
             if reviewer not in self.state['roles'] or reviewer == agent:
@@ -341,20 +353,78 @@ class Engine:
         elif kind == 'review':
             self.review(task, action)
         else:
-            raise ValueError('Unknown action type')
+            raise ValueError(
+                f'Unknown action type {kind!r}. Valid types are plan, message, delegate, wait, '
+                'ask, tool, finish and review. A tool call must use '
+                '{"type":"tool","name":"<tool>","args":{...}}, for example '
+                '{"type":"tool","name":"artifact.list","args":{}}.'
+            )
 
-    def validate_evidence(self, references, task_id=None, agent_id=None):
+    def validate_evidence(self, references, task_id=None, agent_id=None, allow_review_evidence=False):
         if not isinstance(references, list):
             raise ValueError('Evidence must be a list of tool_result sequence IDs')
         for ref in references:
             if not isinstance(ref, int) or not 1 <= ref <= len(self.state['events']):
                 raise ValueError('Invalid evidence event')
-            if self.state['events'][ref - 1]['kind'] != 'tool_result':
+            event = self.state['events'][ref - 1]
+            if event['kind'] != 'tool_result':
                 raise ValueError('Evidence must reference actual tool results')
-            if task_id is not None and self.state['events'][ref - 1].get('task') != task_id:
-                raise ValueError('Evidence must belong to the current task')
-            if agent_id is not None and self.state['events'][ref - 1].get('agent') != agent_id:
+            own_task = task_id is None or event.get('task') == task_id
+            from_review = (allow_review_evidence and task_id is not None
+                           and self.is_review_of_own_child(event, task_id))
+            if not own_task and not from_review:
+                raise ValueError(
+                    f'Evidence {ref} belongs to task {event.get("task")!r}, not to the current task '
+                    f'{task_id!r}. Use evidence from the current task, or, for a root delivery, '
+                    'the tool results recorded in the review tasks of your own delegated work.')
+            if agent_id is not None and event.get('agent') != agent_id and not from_review:
                 raise ValueError('Evidence must be gathered by the current agent')
+
+    def is_review_of_own_child(self, event, task_id):
+        """True when a tool result was produced inside a review of delegated work.
+
+        A root task coordinates the whole tree, so it may cite the tool results
+        of any independent review below it. The reviewed task must already be
+        completed, so unfinished work cannot back a delivery.
+        """
+        origin = self.state['tasks'].get(event.get('task'))
+        if not origin or origin.get('kind') != 'review':
+            return False
+        target = self.state['tasks'].get(origin.get('target'))
+        if not target or target.get('status') != 'completed':
+            return False
+        return self.descends_from(target, task_id)
+
+    def delegated_evidence(self, task_id):
+        """Tool results recorded by the independent reviews below a root task."""
+        items = []
+        for event in self.state['events']:
+            if event['kind'] != 'tool_result':
+                continue
+            if not self.is_review_of_own_child(event, task_id):
+                continue
+            result = event['result']
+            item = {'seq': event['seq'], 'name': event['name'],
+                    'review_task': event.get('task'), 'reviewer': event.get('agent')}
+            if isinstance(result, dict):
+                for key in ('exit_code', 'checked_scripts', 'path', 'id', 'validation_warnings'):
+                    if key in result:
+                        item[key] = result[key]
+                if 'output' in result:
+                    item['output_tail'] = str(result['output'])[-600:]
+            items.append(item)
+        return items
+
+    def descends_from(self, task, ancestor_id):
+        """True when `task` is `ancestor_id` or sits below it in the tree."""
+        current = task
+        seen = set()
+        while current and current.get('id') not in seen:
+            if current['id'] == ancestor_id:
+                return True
+            seen.add(current['id'])
+            current = self.state['tasks'].get(current.get('parent'))
+        return False
 
     def execute_tool(self, task, action):
         prior_sources = set(self.state['sources'])
@@ -439,6 +509,23 @@ class Engine:
             if parent['status'] == 'waiting_for_children' and not self.unfinished_children(parent):
                 parent['status'] = 'running'
                 self.enqueue(parent['id'])
+
+    def wake_recipient(self, recipient):
+        """Let a teammate act on an incoming message.
+
+        A task parked in `wait` must still respond when someone asks it for
+        something, otherwise a request such as "publish the file" is never
+        answered and the whole run stalls behind a human clarification.
+        """
+        if recipient == 'group':
+            candidates = [t for t in self.state['tasks'].values()
+                          if t['status'] == 'waiting_for_children']
+        else:
+            candidates = [t for t in self.state['tasks'].values()
+                          if t['owner'] == recipient and t['status'] == 'waiting_for_children']
+        for task in candidates:
+            task['status'] = 'running'
+            self.enqueue(task['id'])
 
     def end_run(self, run_id, status):
         run = self.state['runs'][run_id]

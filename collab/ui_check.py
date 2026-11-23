@@ -47,6 +47,34 @@ def embedded_html(source):
     return None
 
 
+STRUCTURAL_LIMITS = {'html': 1, 'body': 1, 'head': 1}
+
+
+def structural_warnings(source, filename):
+    """Report document-shell duplication that a JavaScript parser cannot see.
+
+    Chunked generation can silently emit two complete documents, or two
+    copies of one script. The JavaScript stays syntactically valid, so only an
+    explicit structural check can catch the lost or duplicated content.
+    """
+    if Path(filename).suffix.lower() != '.html':
+        return []
+    warnings = []
+    lowered = source.lower()
+    for tag, limit in STRUCTURAL_LIMITS.items():
+        count = lowered.count('<' + tag)
+        if count > limit:
+            warnings.append(f'HTML contains {count} <{tag}> elements; expected {limit}. '
+                            f'The document may contain duplicated or concatenated content.')
+    parser = Scripts()
+    parser.feed(source)
+    bodies = [chunk for chunk in parser.chunks if chunk[0].count('document.')]
+    if len(bodies) > 1:
+        warnings.append(f'HTML contains {len(bodies)} scripts that both reference document; '
+                        'the file may have been concatenated twice.')
+    return warnings
+
+
 def check_source(source, filename):
     suffix = Path(filename).suffix.lower()
     if suffix not in {'.py', '.html', '.js', '.mjs'}:
@@ -76,7 +104,8 @@ def check_source(source, filename):
             checks.append({'script': index, 'exit_code': result.returncode,
                            'output': result.stderr.decode('utf-8', errors='replace')[:4000]})
     return {'exit_code': 0 if all(c['exit_code'] == 0 for c in checks) else 1,
-            'checked_scripts': len(checks), 'checks': checks}
+            'checked_scripts': len(checks), 'checks': checks,
+            'validation_warnings': structural_warnings(source, filename)}
 
 
 def require_valid(source, filename):
@@ -84,4 +113,7 @@ def require_valid(source, filename):
     if result['exit_code']:
         failure = next(c for c in result['checks'] if c['exit_code'])
         raise ValueError('JavaScript syntax check failed for ' + filename + ': ' + failure['output'])
+    warnings = result.get('validation_warnings') or []
+    if warnings:
+        raise ValueError('Structural validation failed for ' + filename + ': ' + '; '.join(warnings))
     return result
