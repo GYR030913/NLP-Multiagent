@@ -175,6 +175,10 @@ def parser():
     resume = sub.add_parser('resume')
     resume.add_argument('group')
     resume.add_argument('--steps', type=int, default=30)
+    revive = sub.add_parser('revive')
+    revive.add_argument('group')
+    revive.add_argument('--task', default='root')
+    revive.add_argument('--steps', type=int, default=30)
     for cmd in ('answer', 'approve', 'reject'):
         item = sub.add_parser(cmd)
         item.add_argument('group')
@@ -224,6 +228,16 @@ def main(argv=None):
                 engine.run(args.steps)
                 status(engine)
             elif args.command == 'resume':
+                engine.run(args.steps)
+                status(engine)
+            elif args.command == 'revive':
+                run_id = args.task
+                if run_id == 'root':
+                    run_id = next((r['root'] for r in engine.state['runs'].values()
+                                   if r['status'] == 'failed'), None)
+                if not run_id:
+                    raise ValueError('No failed run to revive')
+                engine.revive(run_id)
                 engine.run(args.steps)
                 status(engine)
             elif args.command in {'answer', 'approve', 'reject'}:

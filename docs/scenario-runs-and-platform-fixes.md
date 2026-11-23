@@ -15,17 +15,18 @@
 | software | Task 2 使用率仪表板 | ✅ 完成 | 68 | `meeting-room-booking.html`（含仪表板） | 通过 |
 | newsroom | Task 1 HKUST AI 专题报道 | ✅ 完成 | 71 | `hkust_ai_article_with_social.md` + 调研档案 | 通过 |
 | newsroom | Task 2 AI 检测器事实核查 | ✅ 完成 | 66 | `ai_detector_factcheck.md` | 通过 |
-| fund | Task 1 模拟投资方案 | ⏳ 未跑 | — | — | — |
-| fund | Task 2 | ⏳ 未跑 | — | — | — |
+| fund | Task 1 模拟投资方案 | ✅ 完成 | 161 | `investment_guide_final.md` + ETF 调研 + 集中度分析 | 通过 |
+| fund | Task 2 半导体行业展望演示 | ✅ 完成 | 194 | `semiconductor_research_2026_2027_corrected.md` + `semiconductor_presentation.html` | 通过 |
 
 ```text
 software : task_completion_rate 1.0 · subtask 1.0 · 9828.96 s · 人工等待 5424.19 s
 newsroom : task_completion_rate 1.0 · subtask 1.0 · 9088.86 s · 人工等待 6573.88 s
+fund     : task_completion_rate 1.0 · subtask 0.80 · 14511.65 s · 人工等待 4815.13 s
 ```
 
-**四个已跑任务全部经独立审查 + 人工验收通过**，无预算耗尽、无致命错误。
+**六个已跑任务全部经独立审查 + 人工验收通过**，无预算耗尽、无致命错误。
 
-累计平台改动：`collab/cli.py`、`collab/engine.py`、`collab/prompts.py`、`collab/tools.py`、`collab/ui_check.py` 共 +301 行，测试从 112 项增加到 **123 项**（全部通过，1 项因 Windows 符号链接跳过）。
+累计平台改动：`collab/cli.py`、`collab/engine.py`、`collab/prompts.py`、`collab/tools.py`、`collab/ui_check.py` 共 +410 行（6 个文件，含文档与测试），测试从 112 项增加到 **127 项**（全部通过，1 项因 Windows 符号链接跳过）。
 
 ---
 
@@ -174,13 +175,74 @@ Task 2 在同一群组内继承 Task 1 的产物、对话与角色记忆，由 l
 
 ### 2.3 场景三：fund
 
-尚未运行。任务为「25 岁、100 万港币的美股模拟投资方案」，需要产出配置理由、风险说明和一份可理解的新手介绍。
+#### Task 1：25 岁 / 100 万港币美股模拟投资方案
+
+```text
+Run r1: 161 actions / 360 · 7 subtasks · task_completion_rate = 1.0
+duration 3140.53 s · human_wait 856.41 s · human_accepted = true
+```
+
+协作链路：fund_manager 拆解 → research 检索 ETF/个股 → marketing 写新手向说明 → risk 独立审查集中度 → marketing 按反馈修 → 反复三轮。
+
+最终交付（`runtime/fund/export/delivery/r1/`）：`investment_guide_final.md`（a8，配置理由 + 风险说明 + 新手介绍）、`etf_research.md`（a1）、`concentration_risk_analysis_revised.md`（a5）。
+
+**人工验收驳回三轮**，累计发现 8 个缺陷：
+
+| # | 缺陷 | 说明 |
+| --- | --- | --- |
+| 1 | 配置比例与自述矛盾 | 正文写「50% VOO / 30% QQQ / 15% VUG / 5% 现金」，但摘要段落写成另一组数字 |
+| 2 | 收益测算重复三套口径 | 乐观/中性/悲观三套数字并存且互相矛盾，读者无法判断采用哪套 |
+| 3 | 费率口径不一 | 有的地方按管理费，有的地方含交易成本，未说明是 TER 还是总持有成本 |
+| 4 | 集中度分析整段重复 | 同一段风险文字在文档中重复三次 |
+| 5 | 风险数字无来源 | 「科技板块占比 92%」等结论未标注任何来源 |
+| 6 | 现金仓位处理含糊 | 5% 现金既没说收益假设，也没说何时动用 |
+| 7 | 未提示汇率风险 | 港币计价却全程按美元测算，HKD 兑 USD 波动完全未提 |
+| 8 | 新手术语未解释 | 直接出现「因子暴露」「再平衡阈值」，对 25 岁新手不可读 |
+
+第 3 轮驳回时**正文改了但摘要没改**，造成摘要与正文再次不一致——与 newsroom 场景同样的问题：**单次驳回后必须逐项复核，不能只看摘要**。
+
+修复后关键数字全部对齐：**HKD 1,000,000** 按 **HKD 7.8/USD** 折算约 **128,205 USD**；配置 **VOO 50% / QQQ 30% / VUG 15% / 现金 5%**；单一板块（科技）暴露 **29–32%**，而非初稿的 60%+；HKD 600 年费成本；年化再平衡阈值与减仓触发条件写成可执行规则。
+
+#### Task 2：2026 年底视角的半导体行业分析演示
+
+```text
+Run r2: 194 actions / 360 · 8 subtasks · task_completion_rate = 1.0
+duration 11371.12 s · human_wait 3958.71 s · human_accepted = true
+```
+
+最终交付（`runtime/fund/export/delivery/r2/`）：`semiconductor_research_2026_2027_corrected.md`（**a11**，31,618 → 13,513 B）、`semiconductor_presentation.html`（**a13**，10 页 HTML 幻灯片）。
+
+**人工验收驳回两轮，累计发现 6 个缺陷**，其中第 2 轮的一个是**捏造数据**：
+
+| # | 缺陷 | 性质 |
+| --- | --- | --- |
+| 1 | AI Server 市场 `$180B` 无来源 | s28 原文是「2025→2030 增长超 4 倍，2030 年接近 $450B」，表头与正文却写 `$180B (2026)`，自相矛盾 |
+| 2 | 无窄屏适配 | 演示用笔记本，缺 `@media` 断点 |
+| 3 | 键盘导航不全 | 仅响应左右方向键，缺 PageDown/PageUp/空格 |
+| 4 | **捏造数据 `$7.39B` GPU-grade 硅片市场** | **最严重**：我对全部 44 个来源做字面串检索，`7.39` **不在任何一个来源中**；研究文档里有 5 处、幻灯片里有 1 处，均标注 `[s32]` |
+| 5 | 表头与单元格年份不符 | 表头 `2026 Size` 下面却出现 2030 数字 |
+| 6 | `+23.4%` 未说明是推算 | 由 790→975 算出，非来源直引 |
+
+第 4 项我在验收时手工复核才查出：**`s32` 全文只讲 3nm/2nm 转换、TSMC 约 40% 300mm 产能投 sub-5nm（约 120 万片/月）、三星 3nm GAA 5 万片/月，完全没有任何「GPU 级硅片市场规模」数字**。模型把一条讲产能的来源，套上了一个凭空的市场规模数字，并反复引用 5 次——这类缺陷在正常阅读中极难发现，只有做字面串全量比对才能暴露。
+
+驳回后重写的 a11 同时清掉了另一个隐藏问题：**a9 有 4 个大段被整体重复了 3–4 遍**（Competitive Landscape / Supply Chain / Investment Opportunities / Quantitative Data Tables / Conclusion 各重复 3–4 次，52 行表格 vs 精简后 15 行）。a11 从 31,618 B 缩到 13,513 B，不是内容缩水，而是去重 + 换掉捏造数据。
+
+修复后我对 a11 与 a13 做了全量数字溯源：
+
+```text
+a11: 23 个数字 token → 全部命中来源（唯一例外 +23.4%，已加脚注说明由 s43 推算）
+a13: 24 个数字 token → 全部命中来源（唯一例外 +23.4%，同上）
+a11 表头: | Metric | 2025 | 2026 (Projected) | 2030 (Projected) | Source |
+a13 表头: | Market Segment | Market Size and Growth | Growth Rate | Source |
+a13 结构: <html>=1 <body>=1 <script>=1 · 10 slides (要求 8–12) · node --check 通过
+a13 交互: 响应式 @media (max-width:768px) · 方向键 + PageDown/PageUp + 空格
+```
 
 ---
 
 ## 3. 平台代码修复
 
-三次运行暴露了 **12 个真实平台缺陷**，全部修复并补充回归测试（112 → 123 项）。分类如下。
+三个场景的六次运行暴露了 **18 个真实平台缺陷**，全部修复并补充回归测试（112 → 127 项）。分类如下。
 
 ### 3.1 缺少产物发现能力（`collab/tools.py`）
 
@@ -250,6 +312,65 @@ Task 2 在同一群组内继承 Task 1 的产物、对话与角色记忆，由 l
 
 **修复**：报错信息明确区分二者，并提示先 `artifact.publish` 再引用其返回的 ID。
 
+### 3.9 工具名被当成动作类型（`collab/prompts.py`、`collab/engine.py`、`collab/tools.py`）
+
+**现象**：fund 场景中 marketing 连续多轮输出 `{"type":"files.append"}`、`{"type":"files.read"}`，被平台拒绝后重复同样的错误，白白消耗数轮预算。
+
+**根因**：提示词只列举了合法的**动作类型**，没有明确说明 `files.append` / `files.read` / `artifact.publish` 是**工具名**，必须包在 `{"type":"tool","name":...}` 里。
+
+**修复（三处）**：
+
+1. 提示词显式声明「Tool names are NEVER action types」，并给出正反例。
+2. `engine.py` 的 `Unknown action type` 报错在命中工具名时**直接点名**正确写法：`'files.append' is a tool, not an action type. Call it as {"type":"tool","name":"files.append","args":{...}}.`
+3. `tools.py` 导出 `TOOL_NAMES` 并挂到 `Tools.NAMES`，供运行时校验。
+
+修复后 marketing 立刻改为正确的 `tool files.replace` / `tool files.read` 调用，一次通过。
+
+### 3.10 重复委派同一工作（`collab/engine.py`）
+
+**现象**：fund_manager 为「改写研究文档」这一件事**连续创建了 5 个任务**（t25–t29），4 个 research agent 同时改同一个文件、同时 publish 同一路径，结果互相覆盖、证据 ID 互撞，评审任务被反复创建 8 次以上（t30–t42），最终把整个 run 拖垮。
+
+**修复**：`delegate` 时先查现有未完成子任务，**按验收标准的词级重叠度**判定是否为重复委派：
+
+```python
+if requested and self.criteria_similarity(existing, requested) >= 0.6:
+    return child_id   # 指向已有任务，拒绝新建
+```
+
+用词级 Jaccard 而非精确字符串匹配，是因为重复委派的措辞几乎从不完全一致。实测相似度：同 owner 的重复任务 **0.77 / 0.96 / 1.00**，而真正不同的工作（research 改文档 vs marketing 改幻灯片）只有 **0.34 / 0.37**，区分度足够。报错信息直接指回已有任务，模型随后改为等待而非新建。
+
+同样地，`finish` 触发的**评审任务**也做了去重：同一 target 只保留一个未完成评审，不再每次拒绝都新建一个。
+
+### 3.11 失败的重复任务永久卡死根交付（`collab/engine.py`）
+
+**现象**：即使修好去重，已有的 3 个失败重复任务仍让根任务永远无法交付：
+
+```text
+ValueError: A delegated task failed; ask the human to revise scope before delivery
+```
+
+根任务 t19 因此 `failed`，run r2 整体失败——**尽管 a11/a13 两个交付物都已正确产出并通过我的全部复核**。
+
+**修复**：新增 `failed_children_are_covered()`——某个失败的子任务，若存在**同 owner 且验收标准重叠 ≥ 0.6 的已完成兄弟任务**，则不再阻塞交付。真正失败且无等价替代的工作仍然被拦下（对应回归测试 `test_failed_child_without_equivalent_success_still_blocks_delivery`）。
+
+### 3.12 无法复活失败的根任务（`collab/engine.py`、`collab/cli.py`）
+
+**现象**：run 已经 `failed`、根任务已经 `failed` 时，`resume` 什么也做不了——队列已清空，没有任何途径让根任务重新交付已完成的成果。
+
+**修复**：新增 `Engine.revive(task_id)` 与 `python -m collab revive <group>`，把失败的根任务与 run 重置为 `running` 并重新入队。参数校验拒绝复活非根任务或已完成的 run。
+
+### 3.13 `files.replace` 匹配失败时无法自查（`collab/tools.py`）
+
+**现象**：markdown 表格行（含 `|`、行首 `- `、行尾 `|`）在 `files.replace` 时反复 `Expected 1 exact matches, found 0`。模型凭记忆重打原文，每次都差一点。
+
+**修复**：报错信息现在附上**文件中最接近的一段实际文本**（`repr` 形式），模型可直接照抄，无需反复 `files.read` 试探。
+
+### 3.14 派生产物与来源争抢路径（`collab/engine.py`）
+
+**现象**：a11 与 a12 是同一路径 `semiconductor_research_2026_2027_corrected.md` 的两个版本，根交付时报 `Choose only one final version of each artifact path`。
+
+**修复**：该校验保持不变（**这是正确的**——交付必须指向唯一版本），但配合 3.10 的去重与 3.11 的失败覆盖，重复发布路径的成因被消除。修复后根任务仅交付 **a11 + a13**，一次通过验收。
+
 ---
 
 ## 4. 环境配置变更
@@ -275,14 +396,18 @@ docker info --format "{{json .RegistryConfig.Mirrors}}"
 
 | 检查 | 结果 |
 | --- | --- |
-| `python -m unittest discover -s tests` | **123 项通过**，1 项跳过（Windows 符号链接），0 失败 |
-| `python scripts/run_checks.py` | Passed=122, skipped=1, failed=0 |
+| `python -m unittest discover -s tests` | **127 项通过**，1 项跳过（Windows 符号链接），0 失败 |
+| `python scripts/run_checks.py` | Passed=126, skipped=1, failed=0 |
 | `python -m collab doctor` | Docker / 镜像 / Node / 搜索 / 密钥 全部就绪 |
 | `python scripts/check_runtime.py --search` | `runtime_checks_passed: True` |
 | 预约系统行为测试（DOM 桩） | 15/15 通过 |
 | 仪表板行为测试（DOM 桩） | 18/18 通过 |
 | 报道文章指标核对 | 13 项数字全部命中，928 词，173 字符摘要 |
 | 事实核查逐条溯源 | 全部数字可追溯到具体 source ID |
+| 投资方案配置核对 | HKD 1,000,000 ≈ 128,205 USD；VOO 50/QQQ 30/VUG 15/现金 5；科技暴露 29–32%；年费 HKD 600 |
+| 半导体研究文档溯源（a11） | 23 个数字 token 全部命中来源（+23.4% 已脚注说明为推算） |
+| 半导体幻灯片溯源（a13） | 24 个数字 token 全部命中来源；单 `<html>/<body>/<script>`；10 页；`node --check` 通过 |
+| 捏造数据检测 | `7.39` 在全部 44 个来源中字面检索**零命中**，确认 `[s32]` 为误引 |
 
 新增回归测试覆盖：
 
@@ -292,18 +417,23 @@ docker info --format "{{json .RegistryConfig.Mirrors}}"
 - 证据可引用来源 ID 与产物 ID，未知 ID 被拒
 - `Unknown action type` / `Unknown artifact` 错误信息包含可用 ID 与示例
 - Windows GBK 控制台下的 `status()` 与 `safe_print()` 不崩溃
+- 重复委派同一工作被拒绝，并指回已有任务
+- 不同工作的委派仍然放行
+- 失败的重复子任务**不**阻塞根交付
+- 失败且无等价替代的子任务**仍**阻塞交付
 
 ---
 
 ## 6. 人工验收方法
 
-本轮 4 次人工验收全部基于**直接检查交付源码**，而非采信团队的总结：
+本轮 6 次人工验收全部基于**直接检查交付源码**，而非采信团队的总结：
 
 1. **阅读产物原文**（HTML / Markdown），逐项比对任务要求
 2. **搭建 DOM 测试桩**运行真实应用代码，验证行为而非阅读代码（发现 ID 冲突、伪造取消率）
 3. **写脚本把文章里的每个数字回查源文本**，确认可追溯（发现 venue 错误、near-zero 夸大、来源性质混淆）
 4. **计数校验**（词数、字符数），发现社交摘要超限
 5. **检查文章自相矛盾**（正文改了、来源列表没改）
+6. **对全部来源做字面串全量检索**，逐个数字反查（发现 `$7.39B` 捏造数据、同一路径多版本产物、文档大段重复）
 
 驳回时给出**可执行的修复说明**（具体改哪句、改成什么数值、附上正确数据），而非仅指出问题。
 
@@ -311,12 +441,12 @@ docker info --format "{{json .RegistryConfig.Mirrors}}"
 
 ## 7. 遗留与边界
 
-- 场景三（fund）两项任务**尚未运行**。
 - 调度仍是**顺序队列**，不是多 Agent 真并行。
 - 根任务的证据规则放宽仅限「根任务 + 独立评审任务」这一条路径；普通任务与其他任务的证据隔离未放松。
 - HTML 结构检查是启发式的（计数重复外壳元素），不替代浏览器测试。
 - `LLM_ALLOW_INSECURE_HTTP` 每次新 shell 都需手动设置，容易遗漏。
-- 本轮动作数偏高（software 197 次 / newsroom 137 次），相当比例来自人工 `answer`/`resume` 推进；§3.3–3.5 的改动正是为减少这类干预而做，效果需下一轮验证。
+- 本轮动作数偏高（software 197 次 / newsroom 137 次 / fund 355 次），相当比例来自人工 `answer`/`resume` 推进；§3.3–3.5、§3.9–3.11 的改动正是为减少这类干预而做，其中 §3.10（重复委派去重）已在 fund run r2 实跑中**当场生效**并直接把动作数从失控拉回可完成区间。
+- **模型会捏造带精确数字的"市场事实"**（fund Task 2 的 `$7.39B`）。提示词层面的约束不足以杜绝，**必须靠字面串全量溯源才能发现**；这是本轮最重要的一条经验。
 - 真实模型输出质量、浏览器人工验收与课程最终评分仍以教师口径为准。
 
 ---

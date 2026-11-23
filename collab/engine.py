@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from copy import deepcopy
 from .store import now
@@ -290,6 +291,15 @@ class Engine:
                 raise ValueError('Maximum delegation depth reached')
             if action['to'] == agent or not action.get('criteria') or not isinstance(action['criteria'], list):
                 raise ValueError('Delegate to another agent with explicit acceptance criteria')
+            # Repeatedly delegating the same work wastes the run and leaves
+            # several agents editing the same file. Point at the existing task
+            # instead of creating another one.
+            duplicate = self.find_duplicate_delegation(task, action)
+            if duplicate:
+                raise ValueError(
+                    f'This work is already delegated as task {duplicate}. '
+                    'Do not create a second task for the same assignment. '
+                    'Wait for that task, or send it a message with the extra instructions.')
             self.new_task(action['to'], action['description'], action['criteria'], task['run'], task['id'],
                           depends_on=action.get('depends_on'))
         elif kind == 'wait':
@@ -312,8 +322,14 @@ class Engine:
                 raise ValueError('Use review action for review tasks')
             if self.unfinished_children(task):
                 raise ValueError('Children still pending; wait for their results')
-            if any(self.state['tasks'][c]['status'] == 'failed' for c in task['children']):
-                raise ValueError('A delegated task failed; ask the human to revise scope before delivery')
+            failed_children = [c for c in task['children'] if self.state['tasks'][c]['status'] == 'failed']
+            if failed_children:
+                # A failed child blocks delivery only when nothing equivalent
+                # succeeded. A duplicated assignment that failed while another
+                # copy completed must not strand the root task.
+                covered = self.failed_children_are_covered(task, failed_children)
+                if not covered:
+                    raise ValueError('A delegated task failed; ask the human to revise scope before delivery')
             if any(not isinstance(action.get(k), str) or not action[k].strip() for k in ('summary', 'lesson')):
                 raise ValueError('Provide summary and a grounded lesson')
             if not isinstance(action.get('artifacts', []), list) or not all(isinstance(a, str) for a in action.get('artifacts', [])):
@@ -335,7 +351,15 @@ class Engine:
             self.tools.validate_artifacts(self.state, action.get('artifacts', []))
             reviewer = action.get('reviewer')
             if reviewer not in self.state['roles'] or reviewer == agent:
-                raise ValueError('Choose an independent reviewer')
+                eligible = [name for name in self.state['roles'] if name != agent]
+                hint = ''
+                if reviewer == agent:
+                    hint = (f' You cannot review your own task. Pick another role: '
+                            + ', '.join(eligible) + '.')
+                elif reviewer not in self.state['roles']:
+                    hint = (f' {reviewer!r} is not a role in this group. Roles: '
+                            + ', '.join(self.state['roles']) + '.')
+                raise ValueError('Choose an independent reviewer.' + hint)
             if task['private']:
                 # Human reviews private answers, preserving DM boundaries.
                 task['submission'] = action
@@ -346,18 +370,32 @@ class Engine:
                 self.assert_task_capacity(task['run'])
                 task['submission'] = action
                 task['status'] = 'reviewing'
-                review_id = self.new_task(reviewer, 'Independently review task ' + task['id'] + ': ' + task['description'] +
-                            '\nSubmission: ' + json.dumps(action, ensure_ascii=False), task['criteria'],
-                            task['run'], kind='review', target=task['id'])
+                # One open review per target: a rejected submission that is
+                # resubmitted should not fan out into parallel duplicate reviews.
+                review_id = None
+                for candidate in self.state['tasks'].values():
+                    if (candidate['kind'] == 'review' and candidate.get('target') == task['id']
+                            and candidate['status'] not in {'completed', 'failed'}):
+                        review_id = candidate['id']
+                        break
+                if review_id is None:
+                    review_id = self.new_task(reviewer, 'Independently review task ' + task['id'] + ': ' + task['description'] +
+                                '\nSubmission: ' + json.dumps(action, ensure_ascii=False), task['criteria'],
+                                task['run'], kind='review', target=task['id'])
                 task['review_task'] = review_id
         elif kind == 'review':
             self.review(task, action)
         else:
+            known_tools = sorted(getattr(self.tools, 'NAMES', []) or [])
+            hint = ''
+            if kind in known_tools:
+                hint = (f' {kind!r} is a tool, not an action type. Call it as '
+                        f'{{"type":"tool","name":"{kind}","args":{{...}}}}.')
             raise ValueError(
                 f'Unknown action type {kind!r}. Valid types are plan, message, delegate, wait, '
                 'ask, tool, finish and review. A tool call must use '
                 '{"type":"tool","name":"<tool>","args":{...}}, for example '
-                '{"type":"tool","name":"artifact.list","args":{}}.'
+                '{"type":"tool","name":"artifact.list","args":{}}.' + hint
             )
 
     def validate_evidence(self, references, task_id=None, agent_id=None, allow_review_evidence=False):
@@ -491,6 +529,67 @@ class Engine:
     def unfinished_children(self, task):
         return [c for c in task['children'] if self.state['tasks'][c]['status'] not in {'completed', 'failed'}]
 
+    def failed_children_are_covered(self, task, failed_children):
+        """True when a completed sibling already covers the failed child's work."""
+        completed = [c for c in task['children']
+                     if self.state['tasks'][c]['status'] == 'completed']
+        if not completed:
+            return False
+        for child_id in failed_children:
+            child = self.state['tasks'][child_id]
+            child_criteria = set(child.get('criteria') or [])
+            for other_id in completed:
+                other = self.state['tasks'][other_id]
+                if other['owner'] != child['owner']:
+                    continue
+                other_criteria = set(other.get('criteria') or [])
+                if not child_criteria or not other_criteria:
+                    continue
+                if self.criteria_similarity(child_criteria, other_criteria) >= 0.6:
+                    break
+            else:
+                return False
+        return True
+
+    @staticmethod
+    def criteria_similarity(left, right):
+        """Word-level overlap between two sets of acceptance criteria.
+
+        Duplicated assignments are rarely worded identically, so exact string
+        comparison understates how much of the work is shared.
+        """
+        def tokens(criteria):
+            words = set()
+            for item in criteria:
+                for word in re.findall(r'[a-z0-9]+', str(item).lower()):
+                    if len(word) > 2:
+                        words.add(word)
+            return words
+
+        a, b = tokens(left), tokens(right)
+        if not a or not b:
+            return 0.0
+        return len(a & b) / len(a | b)
+
+    def find_duplicate_delegation(self, task, action):
+        target = action.get('to')
+        criteria = action.get('criteria') or []
+        for child_id in task['children']:
+            child = self.state['tasks'][child_id]
+            if child['owner'] != target or child['status'] in {'completed', 'failed'}:
+                continue
+            if child['kind'] != 'work':
+                continue
+            existing = set(child['criteria'])
+            requested = set(criteria)
+            if existing == requested:
+                return child_id
+            # A near match still duplicates the assignment: same owner, same
+            # parent, and most of the same acceptance conditions.
+            if requested and self.criteria_similarity(existing, requested) >= 0.6:
+                return child_id
+        return None
+
     def review(self, review_task, action):
         if review_task['kind'] != 'review' or not isinstance(action.get('approved'), bool):
             raise ValueError('Review action requires an assigned review task and a boolean verdict')
@@ -559,6 +658,34 @@ class Engine:
             else:
                 target['status'] = 'running'
                 self.enqueue(target['id'])
+
+    def revive(self, task_id):
+        """Return a failed root task to the running state so it can deliver.
+
+        Used when a run was stranded by a failed duplicate or an error
+        cascade, but the underlying deliverables exist and are published.
+        """
+        task = self.state['tasks'].get(task_id)
+        if not task:
+            raise ValueError('Unknown task')
+        if task['parent'] is not None:
+            raise ValueError('Only a root task can be revived')
+        if task['status'] not in {'failed', 'waiting_for_human', 'waiting_for_children'}:
+            raise ValueError(f'Task {task_id} is {task["status"]}, not failed')
+        run = self.state['runs'][task['run']]
+        if run['status'] == 'completed':
+            raise ValueError('The run already completed')
+        run['status'] = 'running'
+        run['fatal_error'] = False
+        run['finished_at'] = None
+        task['status'] = 'running'
+        task['errors'] = 0
+        task['attempt'] = 1
+        self.state['queue'] = [tid for tid in self.state['queue']
+                               if self.state['tasks'][tid]['run'] != task['run']]
+        self.enqueue(task_id)
+        self.event('task_revived', task=task_id, run=task['run'])
+        return task_id
 
     def complete(self, task):
         task['status'] = 'completed'

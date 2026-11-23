@@ -113,9 +113,15 @@ class TextParser(HTMLParser):
             self.parts.append(data.strip())
 
 
+TOOL_NAMES = (
+    'files.list', 'files.read', 'files.write', 'files.delete', 'files.append',
+    'files.replace', 'code.run', 'ui.check', 'web.search', 'web.fetch',
+    'artifact.publish', 'artifact.list', 'artifact.import',
+    'git.init', 'git.status', 'git.diff', 'git.commit', 'git.push',
+)
+
 TOOL_HELP = '''
-Use {"type":"tool","name":NAME,"args":{...}}. Available tools:
-files.list {} ; files.read {path}; files.write {path,content}; files.delete {path} [human approval].
+Use {"type":"tool","name":NAME,"args":{...}}. Available tools:files.list {} ; files.read {path}; files.write {path,content}; files.delete {path} [human approval].
 files.append {path,content} appends to an existing text file; split large files into smaller actions.
 files.replace {path,old,new,expected_count:1} performs a small exact edit. Prefer it to rewriting large files.
 code.run {argv:["python","-m","unittest","discover"],timeout:60} [isolated Docker; no network].
@@ -134,6 +140,8 @@ can consume JavaScript backslash escapes: use raw strings or separate JS files. 
 
 
 class Tools:
+    NAMES = TOOL_NAMES
+
     def __init__(self, store, config):
         self.store, self.config = store, config
         self.sandbox = Sandbox(config.image)
@@ -179,7 +187,24 @@ class Tools:
             source = path.read_text(encoding='utf-8')
             actual = source.count(old)
             if actual != expected:
-                raise ValueError(f'Expected {expected} exact matches, found {actual}; read the relevant file before retrying')
+                hint = ''
+                # Show the nearest region of the file so the model can copy the
+                # exact text instead of retyping it from memory.
+                probe = old.strip().split('\n')[0][:40]
+                if probe:
+                    idx = source.find(probe)
+                    if idx < 0:
+                        # Fall back to a distinctive fragment of the old text.
+                        for frag in (old[:30], old[-30:]):
+                            idx = source.find(frag)
+                            if idx >= 0:
+                                break
+                    if idx >= 0:
+                        window = source[max(0, idx - 120):idx + 320]
+                        hint = (' The closest text in the file is: ' + repr(window))
+                raise ValueError(
+                    f'Expected {expected} exact matches, found {actual}; read the relevant file before retrying.'
+                    + hint)
             changed = source.replace(old, new)
             if len(changed.encode('utf-8')) > 256000:
                 raise ValueError('Updated file exceeds 256 KB')

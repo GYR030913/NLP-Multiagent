@@ -338,6 +338,54 @@ class MemberAOrchestrationTests(unittest.TestCase):
             )
         )
 
+    def test_failed_duplicate_child_does_not_block_root_delivery(self):
+        """A duplicated assignment that failed while another copy completed
+        must not strand the root task."""
+        self.plan_root()
+        criteria = ['Rewrite the document.', 'Verify every number.']
+        self.act(self.root, type='delegate', to='dev',
+                 description='Rewrite the document.', criteria=criteria)
+        good = self.engine.state['tasks'][self.root]['children'][-1]
+        # A second copy of the same assignment was created before the platform
+        # started refusing duplicates; it later failed.
+        bad = self.engine.new_task('dev', 'Rewrite the document.', criteria,
+                                    self.engine.state['runs']['r1']['id'], self.root)
+        self.engine.state['tasks'][bad]['status'] = 'failed'
+        # The first copy completed and published the deliverable.
+        self.tool(good, 'files.write', path='doc.md', content='Corrected.')
+        published = self.tool(good, 'artifact.publish', path='doc.md', description='Doc')
+        self.finish(good, reviewer='qa', artifacts=[published['result']['id']])
+        review = self.engine.state['tasks'][good]['review_task']
+        # The reviewer inspects the artifact itself, so the review task owns
+        # the tool result that backs its verdict.
+        checked = self.tool(review, 'artifact.import', id=published['result']['id'],
+                            path='doc.md')
+        self.act(review, type='review', approved=True, feedback='Verified',
+                 checks=[{'criterion': c, 'passed': True, 'evidence': [checked['seq']]}
+                         for c in criteria])
+        self.engine.state['tasks'][good]['status'] = 'completed'
+        # The root may now deliver despite the failed duplicate.
+        self.engine.state['tasks'][self.root]['status'] = 'running'
+        self.engine.state['tasks'][self.root]['planned'] = True
+        # A root delivery cites the tool results recorded in the reviews of
+        # the work it delegated.
+        self.act(self.root, type='finish', summary='Delivered.',
+                 lesson='Duplicates must not block delivery.',
+                 artifacts=[published['result']['id']],
+                 evidence=[checked['seq']], reviewer='qa')
+    def test_failed_child_without_equivalent_success_still_blocks_delivery(self):
+        self.plan_root()
+        self.act(self.root, type='delegate', to='dev',
+                 description='Build the widget.', criteria=['Widget works.'])
+        child = self.engine.state['tasks'][self.root]['children'][-1]
+        self.engine.state['tasks'][child]['status'] = 'failed'
+        self.engine.state['tasks'][self.root]['status'] = 'running'
+        self.engine.state['tasks'][self.root]['planned'] = True
+        with self.assertRaises(ValueError) as caught:
+            self.act(self.root, type='finish', summary='Delivered.',
+                     lesson='Lesson.', artifacts=[], evidence=[], reviewer='qa')
+        self.assertIn('failed', str(caught.exception))
+
     def test_restart_recovers_running_tasks_and_skips_waiting_states(self):
         self.plan_root()
         self.act(
@@ -653,6 +701,46 @@ class MemberAOrchestrationTests(unittest.TestCase):
                                     content='Work log.')['seq']],
                 reviewer='dev',
             )
+
+    def test_repeated_delegation_of_the_same_work_is_refused(self):
+        """Delegating the same assignment twice wastes a run and double-edits files."""
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Rewrite the research file.',
+            criteria=['Replace the fabricated figure.', 'Verify every number.'],
+        )
+        first = self.engine.state['tasks'][self.root]['children'][-1]
+        with self.assertRaises(ValueError) as caught:
+            self.act(
+                self.root,
+                type='delegate',
+                to='dev',
+                description='Rewrite the research file.',
+                criteria=['Replace the fabricated figure.', 'Verify every number.'],
+            )
+        self.assertIn(first, str(caught.exception))
+        self.assertEqual(len(self.engine.state['tasks'][self.root]['children']), 1)
+
+    def test_delegation_of_distinct_work_is_still_allowed(self):
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Rewrite the research file.',
+            criteria=['Replace the fabricated figure.'],
+        )
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Rewrite the slide deck.',
+            criteria=['Update the deck layout.'],
+        )
+        self.assertEqual(len(self.engine.state['tasks'][self.root]['children']), 2)
 
     def test_evidence_may_cite_a_retrieved_source_id(self):
         """A research task legitimately cites the sources it fetched."""

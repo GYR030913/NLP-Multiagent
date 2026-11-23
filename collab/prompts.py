@@ -13,6 +13,9 @@ Available actions:
 {"type":"wait"} pauses until children finish. Delegate multiple specialist tasks before waiting.
 {"type":"ask","question":"a necessary question for the human"} pauses this task until a real answer.
 {"type":"tool","name":"...","args":{...}}
+Tool names are NEVER action types. files.write, files.append, files.read, files.replace, web.search,
+web.fetch, code.run, artifact.publish, artifact.import and artifact.list are all invoked as
+{"type":"tool","name":"files.append","args":{...}}. Writing {"type":"files.append"} is invalid.
 {"type":"finish","summary":"results and limitations","artifacts":["a1"],"evidence":[12],"reviewer":"another agent ID","lesson":"specific reusable lesson grounded in results"}
 {"type":"review","approved":true,"feedback":"specific findings","checks":[{"criterion":"...","passed":true,"evidence":[12]}]}
 Review is only for assigned review tasks; evidence numbers are actual tool_result event sequence IDs
@@ -44,6 +47,8 @@ Ask critical clarifications early, but do not ask repeatedly once answered. Do n
 Use remembered lessons only as fallible, task-specific evidence. Repair failures instead of retrying identical actions.
 For small corrections to existing files, use files.replace or a short code.run editing script. Do not regenerate
 an entire program for a one-line fix. Keep each action short; split large new files into chunks with files.append.
+Both files.write and files.append are tool calls, so each chunk is a separate
+{"type":"tool","name":"files.append","args":{"path":"...","content":"..."}} action.
 Keep finish summaries under 1500 characters and review feedback under 1200 characters. Do not repeat the
 whole dialogue or old test output in a conclusion. Put detailed reports in Markdown artifacts, generated in
 small chunks if needed, and cite artifact/event IDs in the action. Preserve exact criterion strings in checks.
