@@ -654,6 +654,103 @@ class MemberAOrchestrationTests(unittest.TestCase):
                 reviewer='dev',
             )
 
+    def test_evidence_may_cite_a_retrieved_source_id(self):
+        """A research task legitimately cites the sources it fetched."""
+        self.plan_root()
+        self.engine.state['sources']['s1'] = {
+            'id': 's1', 'agent': 'dev', 'url': 'https://example.org/a',
+            'title': 'A source', 'retrieved_at': 'now', 'kind': 'fetched_text',
+            'text': 'body', 'sha256': '0' * 64,
+        }
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Research the topic.',
+            criteria=['Findings are sourced.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.tool(work, 'files.write', path='notes.md', content='Notes.')
+        published = self.tool(
+            work, 'artifact.publish', path='notes.md', description='Notes'
+        )
+        self.act(
+            work,
+            type='finish',
+            summary='Findings.',
+            lesson='Cite the sources.',
+            artifacts=[published['result']['id']],
+            evidence=['s1'],
+            reviewer='qa',
+        )
+        self.assertEqual(self.engine.state['tasks'][work]['status'], 'reviewing')
+
+    def test_evidence_may_cite_a_published_artifact_id(self):
+        """A reviewer legitimately cites the published artifact it examined."""
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Research the topic.',
+            criteria=['Findings are sourced.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.tool(work, 'files.write', path='notes.md', content='Notes.')
+        published = self.tool(
+            work, 'artifact.publish', path='notes.md', description='Notes'
+        )
+        artifact_id = published['result']['id']
+        self.act(
+            work,
+            type='finish',
+            summary='Findings.',
+            lesson='Cite the sources.',
+            artifacts=[artifact_id],
+            evidence=[],
+            reviewer='qa',
+        )
+        review = self.engine.state['tasks'][work]['review_task']
+        self.act(
+            review,
+            type='review',
+            approved=True,
+            feedback='Verified against the published file.',
+            checks=[
+                {
+                    'criterion': 'Findings are sourced.',
+                    'passed': True,
+                    'evidence': [artifact_id],
+                }
+            ],
+        )
+        self.assertEqual(self.engine.state['tasks'][work]['status'], 'completed')
+
+    def test_evidence_rejects_an_unknown_source_id(self):
+        self.plan_root()
+        self.act(
+            self.root,
+            type='delegate',
+            to='dev',
+            description='Research the topic.',
+            criteria=['Findings are sourced.'],
+        )
+        work = self.engine.state['tasks'][self.root]['children'][-1]
+        self.tool(work, 'files.write', path='notes.md', content='Notes.')
+        published = self.tool(
+            work, 'artifact.publish', path='notes.md', description='Notes'
+        )
+        with self.assertRaisesRegex(ValueError, 'Unknown source'):
+            self.act(
+                work,
+                type='finish',
+                summary='Findings.',
+                lesson='Cite the sources.',
+                artifacts=[published['result']['id']],
+                evidence=['s99'],
+                reviewer='qa',
+            )
+
     def test_message_wakes_a_teammate_waiting_for_children(self):
         self.plan_root()
         self.act(

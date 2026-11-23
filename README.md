@@ -163,6 +163,7 @@ runtime/<group>/
 ## 6. 项目文档
 
 - [成员 A 工作与分支报告（先读）](docs/member-a-work-report.md)
+- [场景实测报告与平台修复记录](docs/scenario-runs-and-platform-fixes.md)
 - [架构与边界](docs/architecture.md)
 - [Agent Orchestration 集成契约](docs/orchestration-contract.md)
 - [六项任务验收清单](docs/benchmark.md)

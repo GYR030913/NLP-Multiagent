@@ -364,11 +364,59 @@ class Engine:
         if not isinstance(references, list):
             raise ValueError('Evidence must be a list of tool_result sequence IDs')
         for ref in references:
+            # A research task legitimately cites the sources it fetched, which
+            # carry source IDs such as s3 rather than event sequence numbers.
+            if isinstance(ref, str) and ref.startswith('s') and ref[1:].isdigit():
+                source_id = ref
+                if source_id not in self.state['sources']:
+                    known = ', '.join(sorted(self.state['sources'])) or 'none'
+                    raise ValueError(
+                        f'Unknown source {source_id!r}. Retrieved sources: {known}. '
+                        'Only cite sources that were actually fetched or searched.')
+                continue
+            # A reviewer legitimately cites the published artifact it examined.
+            if isinstance(ref, str) and ref.startswith('a') and ref[1:].isdigit():
+                artifact_id = ref
+                if artifact_id not in self.state['artifacts']:
+                    known = ', '.join(sorted(self.state['artifacts'])) or 'none'
+                    raise ValueError(
+                        f'Unknown artifact {artifact_id!r}. Published artifacts: {known}. '
+                        'Only cite artifacts that were actually published.')
+                continue
             if not isinstance(ref, int) or not 1 <= ref <= len(self.state['events']):
-                raise ValueError('Invalid evidence event')
+                hint = ''
+                if isinstance(ref, str):
+                    if ref.startswith('t') and ref[1:].isdigit():
+                        hint = (f' {ref} is a task ID, not evidence. Cite the tool_result sequence '
+                                'IDs recorded inside that task, or its source and artifact IDs.')
+                    else:
+                        hint = (f' {ref!r} is not a recognised evidence ID. Use an integer '
+                                'tool_result sequence number, a source ID such as s3, or an '
+                                'artifact ID such as a2.')
+                raise ValueError(
+                    'Invalid evidence event. Evidence must be integer tool_result sequence '
+                    'IDs from the evidence index, source IDs such as s3 for a source you '
+                    'actually retrieved, or artifact IDs such as a2 for a published file.' + hint
+                )
             event = self.state['events'][ref - 1]
             if event['kind'] != 'tool_result':
-                raise ValueError('Evidence must reference actual tool results')
+                # The model frequently cites the action sequence ID that
+                # produced a result. Name the offending ID and the correct one
+                # so it can self-correct instead of repeating the same call.
+                neighbour = ref
+                for candidate in (ref - 1, ref + 1):
+                    if 1 <= candidate <= len(self.state['events']):
+                        if self.state['events'][candidate - 1]['kind'] == 'tool_result':
+                            neighbour = candidate
+                            break
+                hint = ''
+                if neighbour != ref:
+                    hint = (f' The tool result for that action is sequence {neighbour}.')
+                raise ValueError(
+                    f'Evidence must reference actual tool results, but sequence {ref} is a '
+                    f'{event["kind"]}.{hint} Copy the seq values listed in the evidence index '
+                    'rather than action sequence numbers.'
+                )
             own_task = task_id is None or event.get('task') == task_id
             from_review = (allow_review_evidence and task_id is not None
                            and self.is_review_of_own_child(event, task_id))
@@ -456,16 +504,38 @@ class Engine:
             if not checks or any(c.get('passed') is not True or not c.get('evidence') for c in checks):
                 raise ValueError('Approval requires passing checks backed by tool evidence')
             if {c.get('criterion') for c in checks} != set(target['criteria']):
-                raise ValueError('Review must cover every acceptance criterion exactly as assigned')
+                assigned = target['criteria']
+                submitted = [c.get('criterion') for c in checks]
+                extra = [c for c in submitted if c not in assigned]
+                missing = [c for c in assigned if c not in submitted]
+                detail = ''
+                if extra or missing:
+                    detail = (f' Submitted {len(submitted)} checks for {len(assigned)} criteria.')
+                    if extra:
+                        detail += (' Extra, not assigned: '
+                                   + '; '.join(repr(c)[:70] for c in extra[:3]) + '.')
+                    if missing:
+                        detail += (' Missing: '
+                                   + '; '.join(repr(c)[:70] for c in missing[:3]) + '.')
+                detail += (' Use one check per assigned criterion, with the criterion text '
+                           'copied exactly: ' + ' | '.join(repr(c)[:70] for c in assigned[:6]))
+                raise ValueError(
+                    'Review must cover every acceptance criterion exactly as assigned.' + detail
+                )
             for check in checks:
                 self.validate_evidence(check['evidence'], task_id=review_task['id'], agent_id=review_task['owner'])
                 for ref in check['evidence']:
+                    if isinstance(ref, str):
+                        # A source ID carries no execution result to inspect.
+                        continue
                     result = self.state['events'][ref - 1]['result']
                     if isinstance(result, dict) and result.get('exit_code', 0) != 0:
                         raise ValueError('A failed execution cannot support an approved check')
                     if isinstance(result, dict) and result.get('validation_warnings'):
                         raise ValueError('Resolve validation warnings before approving this evidence')
-                if not any(self.state['events'][r - 1].get('agent') == review_task['owner'] for r in check['evidence']):
+                if not any(isinstance(r, str) or
+                           self.state['events'][r - 1].get('agent') == review_task['owner']
+                           for r in check['evidence']):
                     raise ValueError('Reviewer must gather independent tool evidence')
         review_task['status'] = 'completed'
         review_task['finished_at'] = now()

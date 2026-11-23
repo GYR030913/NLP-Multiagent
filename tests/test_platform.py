@@ -348,6 +348,59 @@ class PlatformTests(unittest.TestCase):
         self.assertNotIn('sentinel-private-token', json.dumps(self.engine.state['events']))
 
 
+class ConsoleEncodingTests(unittest.TestCase):
+    """A Windows console may not accept every character a model emits."""
+
+    def test_safe_print_replaces_unencodable_characters(self):
+        import io
+
+        from collab.cli import safe_print
+
+        stream = io.TextIOWrapper(io.BytesIO(), encoding='gbk', errors='strict')
+        safe_print('non‑breaking hyphen and ✅ emoji', file=stream)
+        self.assertIsInstance(stream.buffer.getvalue(), bytes)
+
+    def test_status_does_not_raise_on_unencodable_request_text(self):
+        import io
+
+        from collab import cli
+
+        temp = tempfile.TemporaryDirectory()
+        store = Store(temp.name, 'test')
+        config = Config('hkgai', 'https://example.org', 'test', '')
+        Engine.create(store, {'roles': ROLES, 'tasks': [{'text': 'first'}]})
+        engine = Engine(store, config, FakeClient(), Tools(store, config))
+        root = engine.submit('Report task')
+        engine.state['requests']['q1'] = {
+            'id': 'q1', 'task': root, 'kind': 'acceptance', 'status': 'pending',
+            'created_at': 'now', 'summary': 'non‑breaking hyphen ✅',
+        }
+        buffer = io.StringIO()
+        with patch.object(cli.sys, 'stdout', buffer):
+            cli.status(engine)
+        self.assertIn('q1', buffer.getvalue())
+
+    def test_console_status_handles_gbk_stream(self):
+        import io
+
+        from collab import cli
+
+        temp = tempfile.TemporaryDirectory()
+        store = Store(temp.name, 'test')
+        config = Config('hkgai', 'https://example.org', 'test', '')
+        Engine.create(store, {'roles': ROLES, 'tasks': [{'text': 'first'}]})
+        engine = Engine(store, config, FakeClient(), Tools(store, config))
+        root = engine.submit('Report task')
+        engine.state['requests']['q1'] = {
+            'id': 'q1', 'task': root, 'kind': 'acceptance', 'status': 'pending',
+            'created_at': 'now', 'summary': 'non‑breaking hyphen ✅',
+        }
+        stream = io.TextIOWrapper(io.BytesIO(), encoding='gbk', errors='strict')
+        with patch.object(cli.sys, 'stdout', stream):
+            cli.status(engine)
+        self.assertIsInstance(stream.buffer.getvalue(), bytes)
+
+
 class SecurityAndDataTests(unittest.TestCase):
     def test_path_validation(self):
         with tempfile.TemporaryDirectory() as temp:

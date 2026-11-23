@@ -55,6 +55,9 @@ The evidence list contains only tool_result sequence IDs. An agent_action sequen
 For a root delivery, cite IDs from delegated_review_evidence_index, which lists the tool results recorded by the
 independent reviews of the work you delegated; each entry shows its seq, the review_task and the reviewer.
 Never invent a sequence ID. If the index is empty, run a tool in your own task first, or ask the human.
+For reporting work, you may also cite retrieved sources by their source ID, for example s3, as evidence.
+Only cite sources you actually retrieved and that appear in the sources list. A reviewer may also cite the
+published artifact it examined by its artifact ID, for example a2.
 '''
 
 

@@ -53,19 +53,19 @@ def status(engine):
     state = engine.state
     for run in state['runs'].values():
         if run['status'] == 'running':
-            print(
+            safe_print(
                 f"Run {run['id']}: actions "
                 f"{run.get('actions_used', run.get('model_calls', 0))}/"
                 f"{run.get('max_actions', engine.config.max_run_actions)}"
                 + (' BUDGET EXHAUSTED' if run.get('budget_exhausted') else '')
             )
     for task in state['tasks'].values():
-        print(f"{task['id']:>4} {task['owner']:<15} {task['status']:<22} {task['description'][:70]}")
-    print('\nPending human requests:')
+        safe_print(f"{task['id']:>4} {task['owner']:<15} {task['status']:<22} {task['description'][:70]}")
+    safe_print('\nPending human requests:')
     for request in state['requests'].values():
         if request['status'] == 'pending':
-            print(json.dumps(request, ensure_ascii=False, indent=2))
-    print(f"\nQueue: {len(state['queue'])}. Use resume to continue. Export includes complete dialogue and artifacts.")
+            safe_print(json.dumps(request, ensure_ascii=False, indent=2))
+    safe_print(f"\nQueue: {len(state['queue'])}. Use resume to continue. Export includes complete dialogue and artifacts.")
 
 
 def safe_print(text, **kwargs):
@@ -138,7 +138,7 @@ def chat(engine):
             elif command == '/abort':
                 engine.abort(rest)
             elif command == '/export':
-                print(export(engine.store, engine.state))
+                safe_print(export(engine.store, engine.state))
             elif command == '/status':
                 pass
             elif command.startswith('/'):
@@ -152,7 +152,7 @@ def chat(engine):
         except KeyboardInterrupt:
             print('\nPaused; state saved. Use /resume or /quit.')
         except (ValueError, KeyError, OSError) as exc:
-            print(f'Error: {exc}')
+            safe_print(f'Error: {exc}')
 
 
 def parser():
@@ -246,7 +246,7 @@ def main(argv=None):
                 print(export(store, engine.state))
         return 0
     except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
-        print(f'Error: {exc}')
+        safe_print(f'Error: {exc}')
         return 1
 
 
