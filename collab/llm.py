@@ -23,6 +23,63 @@ class CurlTransportError(OSError):
     """The curl fallback could not complete the provider request."""
 
 
+def parse_sse(raw):
+    """Fold a `text/event-stream` body into a normal chat-completion dict.
+
+    Some gateways stream by default and ignore `stream: false`. Chunks carry
+    `choices[0].delta.content` instead of `choices[0].message.content`.
+    """
+    content = []
+    finish = None
+    usage = {}
+    for line in raw.decode('utf-8', errors='replace').splitlines():
+        line = line.strip()
+        if not line.startswith('data:'):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == '[DONE]':
+            continue
+        try:
+            chunk = json.loads(payload)
+        except ValueError:
+            continue
+        if not isinstance(chunk, dict):
+            continue
+        if isinstance(chunk.get('usage'), dict):
+            usage = chunk['usage']
+        for choice in chunk.get('choices') or []:
+            if not isinstance(choice, dict):
+                continue
+            if choice.get('finish_reason'):
+                finish = choice['finish_reason']
+            delta = choice.get('delta') or {}
+            if isinstance(delta.get('content'), str):
+                content.append(delta['content'])
+            message = choice.get('message') or {}
+            if isinstance(message.get('content'), str):
+                content.append(message['content'])
+    if not content:
+        raise ValueError('Streaming response contained no content')
+    return {'choices': [{'index': 0, 'finish_reason': finish or 'stop',
+                         'message': {'role': 'assistant', 'content': ''.join(content)}}],
+            'usage': usage}
+
+
+def normalize_response(raw):
+    """Return a chat-completion dict from a JSON body or an SSE stream."""
+    text = raw.decode('utf-8', errors='replace').strip()
+    if text.startswith('{'):
+        try:
+            value = json.loads(text)
+        except ValueError:
+            value = None
+        if isinstance(value, dict) and isinstance(value.get('choices'), list):
+            return value
+    if text.startswith('data:') or '[DONE]' in text:
+        return parse_sse(raw)
+    raise ValueError('Provider response is neither JSON nor a supported event stream')
+
+
 class Client:
     """Provider-neutral chat JSON protocol; no OpenAI SDK or fallback provider."""
     def __init__(self, config):
@@ -37,10 +94,12 @@ class Client:
 
         def make_request(history):
             body = json.dumps({'model': self.config.model, 'messages': history,
-                               'max_tokens': self.config.max_output_tokens, 'response_format': {'type': 'json_object'}}).encode()
+                               'max_tokens': self.config.max_output_tokens,
+                               'stream': False,
+                               'response_format': {'type': 'json_object'}}).encode()
             auth = self.config.api_key if self.config.auth_header.lower() == 'api-key' else 'Bearer ' + self.config.api_key
             request = urllib.request.Request(self.config.base_url + '/chat/completions', data=body,
-                        headers={'Content-Type': 'application/json'})
+                        headers={'Content-Type': 'application/json', 'Accept': 'application/json'})
             request.add_unredirected_header(self.config.auth_header, auth)
             return request
 
@@ -122,6 +181,7 @@ class Client:
             raise CurlTransportError('curl is not installed')
         timeout = max(1.0, float(self.config.request_timeout_seconds))
         body_path = None
+        header_path = None
         try:
             with tempfile.NamedTemporaryFile(prefix='collab-llm-', suffix='.json', delete=False) as handle:
                 handle.write(request.data or b'')
@@ -129,8 +189,12 @@ class Client:
             auth = request.get_header(self.config.auth_header)
             if not auth or '\r' in auth or '\n' in auth:
                 raise CurlTransportError('Missing or invalid provider credential header')
-            environment = os.environ.copy()
-            environment['COLLAB_LLM_AUTH_VALUE'] = auth
+            # The credential must never reach the command line or the logs.
+            # `--variable`/`--expand-header` need curl >= 7.87, so older builds
+            # read the header from a private temporary file instead.
+            with tempfile.NamedTemporaryFile(prefix='collab-llm-hdr-', suffix='.txt', delete=False) as handle:
+                handle.write(f'{self.config.auth_header}: {auth}\n'.encode('utf-8'))
+                header_path = Path(handle.name)
             completed = subprocess.run(
                 [
                     curl,
@@ -144,10 +208,8 @@ class Client:
                     f'{timeout:g}',
                     '--max-filesize',
                     '2000000',
-                    '--variable',
-                    '%COLLAB_LLM_AUTH_VALUE',
-                    '--expand-header',
-                    f'{self.config.auth_header}: {{{{COLLAB_LLM_AUTH_VALUE}}}}',
+                    '--header',
+                    f'@{header_path.resolve().as_posix()}',
                     '--header',
                     'Content-Type: application/json',
                     '--data-binary',
@@ -158,7 +220,6 @@ class Client:
                 ],
                 capture_output=True,
                 timeout=timeout + 5,
-                env=environment,
                 check=False,
             )
             if completed.returncode:
@@ -181,12 +242,14 @@ class Client:
             if len(raw) > 2000000:
                 raise CurlTransportError('Provider response exceeds limit')
             self.transport_used = 'curl'
-            return json.loads(raw)
+            return normalize_response(raw)
         except subprocess.TimeoutExpired:
             raise TimeoutError('curl provider request timed out') from None
         finally:
             if body_path is not None:
                 body_path.unlink(missing_ok=True)
+            if header_path is not None:
+                header_path.unlink(missing_ok=True)
 
     def request_with_urllib(self, request):
         """Bound the whole request even if a server sends whitespace/keepalive bytes."""
@@ -198,7 +261,7 @@ class Client:
                     raw = response.read(2000001)
                     if len(raw) > 2000000:
                         raise ValueError('Provider response exceeds limit')
-                    value = json.loads(raw)
+                    value = normalize_response(raw)
                 channel.put((True, value))
             except Exception as exc:
                 channel.put((False, exc))
