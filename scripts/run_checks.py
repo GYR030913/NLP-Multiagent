@@ -13,6 +13,10 @@ sys.path.insert(0, str(BASE))
 
 def main():
     import os
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=BASE / "runtime" / "verification.md")
+    args = parser.parse_args()
     os.chdir(BASE)
     suite = unittest.defaultTestLoader.discover(str(BASE / 'tests'), top_level_dir=str(BASE))
     output = io.StringIO()
@@ -27,7 +31,7 @@ def main():
              f'- Elapsed seconds: {elapsed:.3f}', '',
              'These tests use fake model responses and mocked Docker processes. They do not measure model task quality.',
              'Windows symlink checks may be skipped if link creation is unavailable.', '', '```text', output.getvalue(), '```']
-    path = BASE / 'runtime' / 'verification.md'
+    path = args.output
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('\n'.join(lines), encoding='utf-8')
     print(f'Passed={passed}; skipped={len(result.skipped)}; failed={len(result.failures) + len(result.errors)}. Report: {path}')
