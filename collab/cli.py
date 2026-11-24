@@ -75,6 +75,7 @@ def safe_print(text, **kwargs):
     code page. Printing must never abort a run, so unencodable characters are
     replaced instead of raising.
     """
+    text = str(text)
     stream = kwargs.get('file') or sys.stdout
     encoding = getattr(stream, 'encoding', None) or 'ascii'
     try:

@@ -15,7 +15,7 @@ from collab.sandbox import Sandbox
 from collab.report import metrics
 from collab.store import Store
 from collab.tools import Tools, PublicHTTPSConnection
-from collab.cli import locked
+from collab.cli import chat, locked, safe_print
 
 
 class Response(io.BytesIO):
@@ -367,6 +367,33 @@ class SearchAndFetchTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 conn.connect()
             connect.assert_not_called()
+
+
+class CliExportTests(unittest.TestCase):
+    def test_chat_exports_files_and_remains_interactive(self):
+        from collab.engine import Engine
+
+        with tempfile.TemporaryDirectory() as temp:
+            store = Store(temp, 'export-test')
+            Engine.create(store, {
+                'roles': {'lead': {'title': 'Lead', 'prompt': 'Lead'}},
+                'tasks': [{'text': 'first'}, {'text': 'second'}],
+            })
+            engine = Engine(store, Config('hkgai', 'https://example.org', 'test', ''), None, None)
+            output = io.StringIO()
+            with patch('builtins.input', side_effect=['/export', '/status', '/quit']), patch('sys.stdout', output):
+                chat(engine)
+            self.assertIn(str(store.path / 'export'), output.getvalue())
+            self.assertEqual(output.getvalue().count('Queue: 0.'), 2)
+            for name in ('metrics.json', 'report.md', 'dialogue.jsonl'):
+                self.assertTrue((store.path / 'export' / name).is_file())
+
+    def test_path_printing_preserves_ascii_console_fallback(self):
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding='ascii', newline='\n')
+        path = Path('runtime') / '\u6d4b\u8bd5\U0001f600' / 'export'
+        safe_print(path, file=stream, flush=True)
+        self.assertEqual(raw.getvalue(), (str(path) + '\n').encode('ascii', errors='replace'))
 
 
 class WriterLockTests(unittest.TestCase):
