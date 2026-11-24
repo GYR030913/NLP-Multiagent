@@ -8,7 +8,7 @@ Verified with Node.js v22.20.0 static compilation (no generated code executed):
 
 - Original rendered JavaScript: exit 1, `SyntaxError: Unexpected string`.
 - Candidate rendered JavaScript and three static inline handlers: all four syntax checks pass.
-- Platform regression suite: see `docs/verification.md`; includes the exact ordinary-string versus raw-string failure mode.
+- Platform regression evidence: see `docs/member-a-work-report.md`; the exact ordinary-string versus raw-string failure is covered by `tests/test_ui_check.py`.
 
 The headless browser test could not produce a browser report in the Codex execution environment (browser exit 2147483651). Therefore browser button behavior is not claimed as verified here. A normal terminal can run:
 

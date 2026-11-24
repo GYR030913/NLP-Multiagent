@@ -15,7 +15,7 @@ def main():
     import os
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=BASE / "docs" / "verification.md")
+    parser.add_argument("--output", type=Path, default=BASE / "runtime" / "verification.md")
     args = parser.parse_args()
     os.chdir(BASE)
     suite = unittest.defaultTestLoader.discover(str(BASE / 'tests'), top_level_dir=str(BASE))
