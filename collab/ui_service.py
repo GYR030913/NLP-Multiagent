@@ -322,7 +322,7 @@ class UIService:
             output = export(engine.store, engine.state)
             # Preserve legacy exports on disk, but do not offer the obsolete report name.
             return sorted(str(p) for p in output.rglob('*')
-                          if p.is_file() and p != output / 'report.md')
+                          if p.is_file() and p != output / 'performance_report.md')
         return self.mutate(group, operation)
 
     def benchmark(self, export_files=False):

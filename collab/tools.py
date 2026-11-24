@@ -113,15 +113,22 @@ class TextParser(HTMLParser):
             self.parts.append(data.strip())
 
 
+TOOL_NAMES = (
+    'files.list', 'files.read', 'files.write', 'files.delete', 'files.append',
+    'files.replace', 'code.run', 'ui.check', 'web.search', 'web.fetch',
+    'artifact.publish', 'artifact.list', 'artifact.import',
+    'git.init', 'git.status', 'git.diff', 'git.commit', 'git.push',
+)
+
 TOOL_HELP = '''
-Use {"type":"tool","name":NAME,"args":{...}}. Available tools:
-files.list {} ; files.read {path}; files.write {path,content}; files.delete {path} [human approval].
+Use {"type":"tool","name":NAME,"args":{...}}. Available tools:files.list {} ; files.read {path}; files.write {path,content}; files.delete {path} [human approval].
 files.append {path,content} appends to an existing text file; split large files into smaller actions.
 files.replace {path,old,new,expected_count:1} performs a small exact edit. Prefer it to rewriting large files.
 code.run {argv:["python","-m","unittest","discover"],timeout:60} [isolated Docker; no network].
 ui.check {path:"app.py or page.html or client.js"} [static Node --check; does not execute target code].
 web.search {query,topic?:"general|news|finance",time_range?:"day|week|month|year",include_domains?:["hkust.edu.hk"]} [Tavily, keyless if no search key]; web.fetch {url} [public HTTPS, text/HTML only].
-artifact.publish {path,description} -> immutable artifact ID; artifact.import {id,path} -> own workspace.
+artifact.publish {path,description} -> immutable artifact ID; artifact.list {} -> published artifacts;
+artifact.import {id,path} -> own workspace.
 git.init {}; git.status {}; git.diff {}; git.commit {message} [own container repository].
 git.push {url:"https://github.com/OWNER/REPO.git",branch:"main"} [human approval, network, optional GITHUB_TOKEN].
 Do not attempt to execute host commands. Use Python standard library or dependencies already in sandbox.
@@ -133,6 +140,8 @@ can consume JavaScript backslash escapes: use raw strings or separate JS files. 
 
 
 class Tools:
+    NAMES = TOOL_NAMES
+
     def __init__(self, store, config):
         self.store, self.config = store, config
         self.sandbox = Sandbox(config.image)
@@ -178,7 +187,24 @@ class Tools:
             source = path.read_text(encoding='utf-8')
             actual = source.count(old)
             if actual != expected:
-                raise ValueError(f'Expected {expected} exact matches, found {actual}; read the relevant file before retrying')
+                hint = ''
+                # Show the nearest region of the file so the model can copy the
+                # exact text instead of retyping it from memory.
+                probe = old.strip().split('\n')[0][:40]
+                if probe:
+                    idx = source.find(probe)
+                    if idx < 0:
+                        # Fall back to a distinctive fragment of the old text.
+                        for frag in (old[:30], old[-30:]):
+                            idx = source.find(frag)
+                            if idx >= 0:
+                                break
+                    if idx >= 0:
+                        window = source[max(0, idx - 120):idx + 320]
+                        hint = (' The closest text in the file is: ' + repr(window))
+                raise ValueError(
+                    f'Expected {expected} exact matches, found {actual}; read the relevant file before retrying.'
+                    + hint)
             changed = source.replace(old, new)
             if len(changed.encode('utf-8')) > 256000:
                 raise ValueError('Updated file exceeds 256 KB')
@@ -232,15 +258,26 @@ class Tools:
                     'description': args.get('description', ''), 'time': now()}
             state['artifacts'][artifact_id] = item
             return item
+        if name == 'artifact.list':
+            # Let teammates discover published artifacts without guessing IDs.
+            return [{'id': item['id'], 'owner': item['owner'], 'path': item['path'],
+                     'description': item.get('description', ''), 'time': item['time'],
+                     'sha256': item['sha256']}
+                    for item in state['artifacts'].values()]
         if name == 'artifact.import':
-            item = state['artifacts'][args['id']]
+            artifact_id = args['id']
+            if artifact_id not in state['artifacts']:
+                known = ', '.join(sorted(state['artifacts'])) or 'none'
+                raise ValueError(f'Unknown artifact {artifact_id!r}; published artifacts: {known}. '
+                                 'Ask the owner to publish, or call artifact.list first.')
+            item = state['artifacts'][artifact_id]
             data = (self.store.path / 'artifacts' / item['sha256']).read_bytes()
             if hashlib.sha256(data).hexdigest() != item['sha256']:
                 raise ValueError('Artifact integrity check failed')
             path = safe_path(root, args['path'])
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-            return {'imported': args['id'], 'path': args['path']}
+            return {'imported': artifact_id, 'path': args['path']}
         if name == 'web.search':
             if not isinstance(args.get('query'), str) or not 1 <= len(args['query']) <= 1000:
                 raise ValueError('Search query must contain 1-1000 characters')

@@ -10,7 +10,20 @@ def load_env(path=Path('.env')):
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 key, value = line.split('=', 1)
-                os.environ.setdefault(key.strip(), value.strip().strip('\"').strip("'"))
+                key = key.strip()
+                if key == 'LLM_ALLOW_INSECURE_HTTP':
+                    # Security-relevant opt-in: only the real environment counts.
+                    continue
+                os.environ.setdefault(key, value.strip().strip('\"').strip("'"))
+
+
+def _insecure_http_allowed():
+    """Read the insecure-HTTP opt-in directly from the process environment.
+
+    This flag relaxes a transport security rule, so it must be an explicit
+    operator decision. A `.env` file must not be able to turn it on silently.
+    """
+    return os.getenv('LLM_ALLOW_INSECURE_HTTP', '').strip().lower() in {'1', 'true', 'yes'}
 
 
 @dataclass
@@ -29,21 +42,27 @@ class Config:
     max_output_tokens: int = 8192
     request_timeout_seconds: float = 120
     transport: str = 'auto'
+    allow_insecure_http: bool = False
 
     @classmethod
     def from_env(cls):
         load_env()
         provider = os.getenv('LLM_PROVIDER', 'deepseek').lower()
-        if provider not in {'deepseek', 'hkgai'}:
-            raise ValueError('Only DeepSeek and HKGAI are allowed.')
+        if provider not in {'deepseek', 'hkgai', 'newapi', 'custom'}:
+            raise ValueError('Only DeepSeek, HKGAI and course-approved custom gateways are allowed.')
         base = os.getenv('LLM_BASE_URL', 'https://api.deepseek.com' if provider == 'deepseek' else '')
         parts = urlsplit(base)
-        if parts.scheme != 'https' or not parts.hostname or parts.username or parts.password:
-            raise ValueError('Configure a valid HTTPS LLM_BASE_URL.')
+        insecure = _insecure_http_allowed()
+        if parts.scheme not in ({'https', 'http'} if insecure else {'https'}):
+            raise ValueError('Configure a valid HTTPS LLM_BASE_URL, or set LLM_ALLOW_INSECURE_HTTP=1 for a trusted LAN gateway.')
+        if not parts.hostname or parts.username or parts.password:
+            raise ValueError('Configure a valid LLM_BASE_URL without embedded credentials.')
         if provider == 'deepseek' and parts.hostname != 'api.deepseek.com':
             raise ValueError('DeepSeek must use api.deepseek.com; use hkgai for your course endpoint.')
         if any(x in parts.hostname.lower() for x in ('openai', 'anthropic')):
             raise ValueError('OpenAI/Anthropic endpoints are prohibited by the course.')
+        if provider in {'newapi', 'custom'} and not insecure and parts.scheme != 'https':
+            raise ValueError('Custom gateways must use HTTPS unless LLM_ALLOW_INSECURE_HTTP=1 is set explicitly.')
         transport = os.getenv('LLM_TRANSPORT', 'auto').lower()
         if transport not in {'auto', 'curl', 'urllib'}:
             raise ValueError('LLM_TRANSPORT must be auto, curl, or urllib.')
@@ -54,4 +73,4 @@ class Config:
                    max_output_tokens=int(os.getenv('LLM_MAX_OUTPUT_TOKENS', '8192')),
                    request_timeout_seconds=float(os.getenv('LLM_REQUEST_TIMEOUT_SECONDS', '120')),
                    max_run_actions=int(os.getenv('LLM_MAX_RUN_ACTIONS', '360')),
-                   transport=transport)
+                   transport=transport, allow_insecure_http=insecure)

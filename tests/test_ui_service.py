@@ -274,7 +274,7 @@ class UIServiceTests(unittest.TestCase):
         benchmark = self.service.benchmark()
         self.assertEqual(benchmark['scenarios']['newsroom']['tasks']['task_1']['status'], 'not_started')
         files = self.service.export_group('software')
-        self.assertTrue({'metrics.json', 'performance_report.md', 'dialogue.jsonl', 'dialogue.md'}.issubset({Path(p).name for p in files}))
+        self.assertTrue({'metrics.json', 'report.md', 'dialogue.jsonl', 'dialogue.md'}.issubset({Path(p).name for p in files}))
         benchmark_files = self.service.benchmark(True)
         self.assertEqual({Path(p).name for p in benchmark_files}, {'benchmark_metrics.json', 'benchmark_report.md'})
         for path in files + benchmark_files:
@@ -293,7 +293,12 @@ class UIServiceTests(unittest.TestCase):
         output = engine.store.path / 'export'
         target = Path(self.temp.name) / 'untouched.md'
         target.write_text('keep')
-        (output / 'escape.md').symlink_to(target)
+        try:
+            (output / 'escape.md').symlink_to(target)
+        except OSError as exc:
+            if getattr(exc, 'winerror', None) != 1314:
+                raise
+            self.skipTest('Symlink creation not permitted on this Windows host')
         with self.assertRaisesRegex(ValueError, 'links'):
             self.service.export_group('software')
         self.assertEqual(target.read_text(), 'keep')

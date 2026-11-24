@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from contextlib import contextmanager
 from .config import Config
@@ -52,19 +53,36 @@ def status(engine):
     state = engine.state
     for run in state['runs'].values():
         if run['status'] == 'running':
-            print(
+            safe_print(
                 f"Run {run['id']}: actions "
                 f"{run.get('actions_used', run.get('model_calls', 0))}/"
                 f"{run.get('max_actions', engine.config.max_run_actions)}"
                 + (' BUDGET EXHAUSTED' if run.get('budget_exhausted') else '')
             )
     for task in state['tasks'].values():
-        print(f"{task['id']:>4} {task['owner']:<15} {task['status']:<22} {task['description'][:70]}")
-    print('\nPending human requests:')
+        safe_print(f"{task['id']:>4} {task['owner']:<15} {task['status']:<22} {task['description'][:70]}")
+    safe_print('\nPending human requests:')
     for request in state['requests'].values():
         if request['status'] == 'pending':
-            print(json.dumps(request, ensure_ascii=False, indent=2))
-    print(f"\nQueue: {len(state['queue'])}. Use resume to continue. Export includes complete dialogue and artifacts.")
+            safe_print(json.dumps(request, ensure_ascii=False, indent=2))
+    safe_print(f"\nQueue: {len(state['queue'])}. Use resume to continue. Export includes complete dialogue and artifacts.")
+
+
+def safe_print(text, **kwargs):
+    """Print to a Windows console that may not accept the model's Unicode.
+
+    Agent messages can contain emoji or other characters outside the active
+    code page. Printing must never abort a run, so unencodable characters are
+    replaced instead of raising.
+    """
+    text = str(text)
+    stream = kwargs.get('file') or sys.stdout
+    encoding = getattr(stream, 'encoding', None) or 'ascii'
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        text = text.encode(encoding, errors='replace').decode(encoding, errors='replace')
+    print(text, **kwargs)
 
 
 def observe(event):
@@ -72,15 +90,15 @@ def observe(event):
     if kind == 'agent_action':
         action = event['action']
         detail = action.get('name', action.get('to', ''))
-        print(f"[{event['seq']}] {event['agent']}/{event['task']}: {action['type']} {detail}", flush=True)
+        safe_print(f"[{event['seq']}] {event['agent']}/{event['task']}: {action['type']} {detail}", flush=True)
     elif kind == 'message':
-        print(f"{event['sender']} -> {event['to']}: {event['text']}", flush=True)
+        safe_print(f"{event['sender']} -> {event['to']}: {event['text']}", flush=True)
     elif kind in {'action_error', 'model_error'}:
-        print(f"{kind}: {event['error']}", flush=True)
+        safe_print(f"{kind}: {event['error']}", flush=True)
     elif kind == 'human_request':
-        print('HUMAN REQUEST: ' + json.dumps(event['request'], ensure_ascii=False), flush=True)
+        safe_print('HUMAN REQUEST: ' + json.dumps(event['request'], ensure_ascii=False), flush=True)
     elif kind == 'run_budget_exhausted':
-        print(
+        safe_print(
             f"RUN BUDGET EXHAUSTED: {event['actions_used']}/{event['max_actions']} actions",
             flush=True,
         )
@@ -121,7 +139,7 @@ def chat(engine):
             elif command == '/abort':
                 engine.abort(rest)
             elif command == '/export':
-                print(export(engine.store, engine.state))
+                safe_print(export(engine.store, engine.state))
             elif command == '/status':
                 pass
             elif command.startswith('/'):
@@ -135,7 +153,7 @@ def chat(engine):
         except KeyboardInterrupt:
             print('\nPaused; state saved. Use /resume or /quit.')
         except (ValueError, KeyError, OSError) as exc:
-            print(f'Error: {exc}')
+            safe_print(f'Error: {exc}')
 
 
 def parser():
@@ -158,6 +176,10 @@ def parser():
     resume = sub.add_parser('resume')
     resume.add_argument('group')
     resume.add_argument('--steps', type=int, default=30)
+    revive = sub.add_parser('revive')
+    revive.add_argument('group')
+    revive.add_argument('--task', default='root')
+    revive.add_argument('--steps', type=int, default=30)
     for cmd in ('answer', 'approve', 'reject'):
         item = sub.add_parser(cmd)
         item.add_argument('group')
@@ -209,6 +231,16 @@ def main(argv=None):
             elif args.command == 'resume':
                 engine.run(args.steps)
                 status(engine)
+            elif args.command == 'revive':
+                run_id = args.task
+                if run_id == 'root':
+                    run_id = next((r['root'] for r in engine.state['runs'].values()
+                                   if r['status'] == 'failed'), None)
+                if not run_id:
+                    raise ValueError('No failed run to revive')
+                engine.revive(run_id)
+                engine.run(args.steps)
+                status(engine)
             elif args.command in {'answer', 'approve', 'reject'}:
                 if args.command == 'answer' and not args.text:
                     raise ValueError('Provide a real answer')
@@ -229,7 +261,7 @@ def main(argv=None):
                 print(export(store, engine.state))
         return 0
     except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
-        print(f'Error: {exc}')
+        safe_print(f'Error: {exc}')
         return 1
 
 

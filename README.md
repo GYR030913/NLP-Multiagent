@@ -115,17 +115,6 @@ python -m collab export software
 
 任意新题可使用 `post GROUP --text '目标'` 或 `--file task.md`，不局限于这六个任务。
 
-## Gradio HITL & Evaluation 工作台
-
-CLI 之外可使用本地 Web 工作台：
-
-```bash
-python -m pip install -r requirements-ui.txt
-python scripts/run_ui.py
-```
-
-打开 `http://127.0.0.1:7860`。支持三群组聊天与私聊、任务提交/恢复、人工澄清/审批/验收、指标与报告导出。点击 Send 即保存并调用模型执行；Pause 暂停，End 结束当前会话任务并保留记录。已有 runtime 与 `.env` 保留。Gradio 为可选依赖，CLI 无须安装。详见 [UI 使用与架构说明](docs/ui.md)。
-
 ## 浏览器验收预约系统
 
 出现根任务 `acceptance` 请求后先在聊天中 `/export`，再开另一个 PowerShell：
@@ -155,7 +144,7 @@ runtime/<group>/
   artifacts/<sha256>         # 发布时的不可变文件快照
   export/
     metrics.json             # 完成率、耗时、人类等待、动作预算、调用/用量、记忆快照
-    performance_report.md
+    report.md
     dialogue.md
     dialogue.jsonl
     sources.json
@@ -174,6 +163,7 @@ runtime/<group>/
 ## 6. 项目文档
 
 - [成员 A 工作与分支报告（先读）](docs/member-a-work-report.md)
+- [场景实测报告与平台修复记录](docs/scenario-runs-and-platform-fixes.md)
 - [架构与边界](docs/architecture.md)
 - [Agent Orchestration 集成契约](docs/orchestration-contract.md)
 - [六项任务验收清单](docs/benchmark.md)

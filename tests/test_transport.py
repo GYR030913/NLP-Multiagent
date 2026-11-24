@@ -9,13 +9,13 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from collab.config import Config
+from collab.config import Config, load_env
 from collab.llm import Client, CurlTransportError, ModelError
 from collab.sandbox import Sandbox
 from collab.report import metrics
 from collab.store import Store
 from collab.tools import Tools, PublicHTTPSConnection
-from collab.cli import locked
+from collab.cli import chat, locked, safe_print
 
 
 class Response(io.BytesIO):
@@ -32,6 +32,40 @@ class TransportTests(unittest.TestCase):
     def setUp(self):
         self.config = Config('hkgai', 'https://api1.hkgai.net/v1', 'course-model',
                              'test-only-sentinel', transport='urllib')
+
+    def test_event_stream_response_is_folded_into_a_chat_completion(self):
+        stream = (
+            b'data: {"choices":[{"delta":{"role":"assistant","content":""},"finish_reason":null}]}\n'
+            b'data: {"choices":[{"delta":{"content":"{\\"status\\":"},"finish_reason":null}]}\n'
+            b'data: {"choices":[{"delta":{"content":"\\"ok\\"}"},"finish_reason":"stop"}],"usage":{"total_tokens":7}}\n'
+            b'data: [DONE]\n'
+        )
+
+        class StreamResponse(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch('urllib.request.urlopen', return_value=StreamResponse(stream)):
+            client = Client(self.config)
+            self.assertEqual(client.generate([]), {'status': 'ok'})
+            self.assertEqual(client.usage['total_tokens'], 7)
+
+    def test_event_stream_without_content_is_rejected(self):
+        stream = b'data: {"choices":[{"delta":{"content":""},"finish_reason":"stop"}]}\ndata: [DONE]\n'
+
+        class StreamResponse(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch('urllib.request.urlopen', return_value=StreamResponse(stream)):
+            with self.assertRaises(ModelError):
+                Client(self.config).generate([])
 
     def test_correct_endpoint_and_json_protocol(self):
         with patch('urllib.request.urlopen', return_value=response()) as opened:
@@ -91,13 +125,34 @@ class TransportTests(unittest.TestCase):
 
         self.assertEqual(result, {'status': 'ok'})
         argv = invoked.call_args.args[0]
-        self.assertNotIn('test-only-sentinel', ' '.join(argv))
-        self.assertEqual(
-            invoked.call_args.kwargs['env']['COLLAB_LLM_AUTH_VALUE'],
-            'Bearer test-only-sentinel',
-        )
+        self.assertNotIn('test-only-sentinel', ' '.join(str(item) for item in argv))
+        # The credential reaches curl through a private header file, never the argv.
+        header_arguments = [str(item) for item in argv if str(item).startswith('@')]
+        self.assertTrue(header_arguments, 'expected a header file argument')
         self.assertTrue(any('%{http_code}' in str(item) for item in argv))
-        self.assertTrue(any('{{COLLAB_LLM_AUTH_VALUE}}' in str(item) for item in argv))
+
+    def test_curl_transport_writes_credential_to_a_private_header_file(self):
+        self.config.transport = 'curl'
+        payload = response().getvalue()
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=payload + b'\n200',
+            stderr=b'',
+        )
+        captured = {}
+
+        def fake_run(args, **kwargs):
+            header_argument = next(item for item in args if str(item).startswith('@'))
+            captured['header_file'] = Path(header_argument[1:]).read_text(encoding='utf-8')
+            return completed
+
+        with patch('collab.llm.shutil.which', return_value='curl.exe'), patch(
+            'collab.llm.subprocess.run', side_effect=fake_run
+        ):
+            Client(self.config).generate([])
+
+        self.assertIn('test-only-sentinel', captured['header_file'])
+        self.assertIn('Authorization:', captured['header_file'])
 
     def test_curl_http_error_is_not_reported_as_success(self):
         self.config.transport = 'curl'
@@ -197,6 +252,39 @@ class TransportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 Config.from_env()
 
+    def test_http_gateway_requires_an_explicit_opt_in(self):
+        environment = {'LLM_PROVIDER': 'newapi', 'LLM_BASE_URL': 'http://aigw.example.edu.cn/v1',
+                       'LLM_MODEL': 'GLM-4.6-W8A8', 'LLM_API_KEY': 'test-only-sentinel'}
+        with patch.dict(os.environ, environment, clear=False):
+            with patch.dict(os.environ, {'LLM_ALLOW_INSECURE_HTTP': ''}):
+                with self.assertRaises(ValueError):
+                    Config.from_env()
+
+    def test_http_gateway_is_accepted_with_an_explicit_opt_in(self):
+        environment = {'LLM_PROVIDER': 'newapi', 'LLM_BASE_URL': 'http://aigw.example.edu.cn/v1',
+                       'LLM_MODEL': 'GLM-4.6-W8A8', 'LLM_API_KEY': 'test-only-sentinel',
+                       'LLM_ALLOW_INSECURE_HTTP': '1'}
+        with patch.dict(os.environ, environment, clear=False):
+            config = Config.from_env()
+            self.assertEqual(config.base_url, 'http://aigw.example.edu.cn/v1')
+            self.assertEqual(config.model, 'GLM-4.6-W8A8')
+            self.assertTrue(config.allow_insecure_http)
+
+    def test_env_file_cannot_enable_insecure_http_on_its_own(self):
+        """A .env file must not be able to turn on the insecure-HTTP opt-in."""
+        with patch.dict(os.environ, {'LLM_ALLOW_INSECURE_HTTP': ''}, clear=False):
+            load_env()
+            self.assertEqual(os.getenv('LLM_ALLOW_INSECURE_HTTP', ''), '')
+
+    def test_https_custom_gateway_needs_no_opt_in(self):
+        environment = {'LLM_PROVIDER': 'newapi', 'LLM_BASE_URL': 'https://aigw.example.edu.cn/v1',
+                       'LLM_MODEL': 'GLM-4.6-W8A8', 'LLM_API_KEY': 'test-only-sentinel'}
+        with patch.dict(os.environ, environment, clear=False):
+            with patch.dict(os.environ, {'LLM_ALLOW_INSECURE_HTTP': ''}):
+                config = Config.from_env()
+                self.assertEqual(config.base_url, 'https://aigw.example.edu.cn/v1')
+                self.assertFalse(config.allow_insecure_http)
+
     def test_total_deadline_stops_even_if_transport_does_not_timeout(self):
         release = threading.Event()
         self.config.request_timeout_seconds = .05
@@ -279,6 +367,33 @@ class SearchAndFetchTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 conn.connect()
             connect.assert_not_called()
+
+
+class CliExportTests(unittest.TestCase):
+    def test_chat_exports_files_and_remains_interactive(self):
+        from collab.engine import Engine
+
+        with tempfile.TemporaryDirectory() as temp:
+            store = Store(temp, 'export-test')
+            Engine.create(store, {
+                'roles': {'lead': {'title': 'Lead', 'prompt': 'Lead'}},
+                'tasks': [{'text': 'first'}, {'text': 'second'}],
+            })
+            engine = Engine(store, Config('hkgai', 'https://example.org', 'test', ''), None, None)
+            output = io.StringIO()
+            with patch('builtins.input', side_effect=['/export', '/status', '/quit']), patch('sys.stdout', output):
+                chat(engine)
+            self.assertIn(str(store.path / 'export'), output.getvalue())
+            self.assertEqual(output.getvalue().count('Queue: 0.'), 2)
+            for name in ('metrics.json', 'report.md', 'dialogue.jsonl'):
+                self.assertTrue((store.path / 'export' / name).is_file())
+
+    def test_path_printing_preserves_ascii_console_fallback(self):
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding='ascii', newline='\n')
+        path = Path('runtime') / '\u6d4b\u8bd5\U0001f600' / 'export'
+        safe_print(path, file=stream, flush=True)
+        self.assertEqual(raw.getvalue(), (str(path) + '\n').encode('ascii', errors='replace'))
 
 
 class WriterLockTests(unittest.TestCase):

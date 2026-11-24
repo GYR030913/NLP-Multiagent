@@ -28,6 +28,21 @@ function loadBookings() {
     def test_json_script_data_is_not_javascript(self):
         self.assertEqual(check_source('<script type="application/json">{"x":1}</script>', 'page.html')['checked_scripts'], 0)
 
+    def test_semantic_header_and_independent_scripts_are_valid(self):
+        source = '''<html><head></head><body><header>Booking</header>
+<script>document.title = 'Booking';</script>
+<script>document.body.dataset.ready = 'yes';</script></body></html>'''
+        self.assertEqual(require_valid(source, 'page.html')['checked_scripts'], 2)
+
+    def test_script_text_and_comments_do_not_count_as_shell_tags(self):
+        source = '''<html><head></head><body><!-- <html><head><body> -->
+<script>const example = '<head><body>';</script></body></html>'''
+        self.assertEqual(require_valid(source, 'page.html')['exit_code'], 0)
+
+    def test_duplicate_documents_are_blocked_even_without_scripts(self):
+        with self.assertRaisesRegex(ValueError, 'Structural validation failed'):
+            require_valid('<html><head></head><body></body></html>' * 2, 'page.html')
+
 
 class ExtractionTests(unittest.TestCase):
     def test_python_is_parsed_without_importing_or_running_it(self):
