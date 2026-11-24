@@ -799,6 +799,11 @@ class MemberAOrchestrationTests(unittest.TestCase):
             reviewer='qa',
         )
         review = self.engine.state['tasks'][work]['review_task']
+        with self.assertRaisesRegex(ValueError, 'independent tool evidence'):
+            self.act(review, type='review', approved=True, feedback='No inspection yet.',
+                     checks=[{'criterion': 'Findings are sourced.', 'passed': True,
+                              'evidence': [artifact_id]}])
+        self.tool(review, 'artifact.import', id=artifact_id, path='review-notes.md')
         self.act(
             review,
             type='review',

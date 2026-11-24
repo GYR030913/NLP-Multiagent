@@ -188,14 +188,17 @@ class Engine:
         self.event('human_request', request=deepcopy(self.state['requests'][request_id]), task=task['id'])
         return request_id
 
-    def run(self, steps=None):
+    def run(self, steps=None, stop_requested=None):
         requested_steps = min(steps or self.config.max_steps, self.config.max_steps)
         completed_steps = 0
         while completed_steps < requested_steps:
-            if not self.state['queue']:
+            if (stop_requested and stop_requested()) or not self.state['queue']:
                 break
             task_id = self.state['queue'][0]
             task = self.state['tasks'][task_id]
+            if task['status'] != 'running':
+                self.state['queue'].pop(0)
+                continue
             run = self.state['runs'][task['run']]
             actions_used = int(run.get('actions_used', 0))
             max_actions = int(run.get('max_actions', self.config.max_run_actions))
@@ -204,8 +207,6 @@ class Engine:
                 break
             self.state['queue'].pop(0)
             completed_steps += 1
-            if task['status'] != 'running':
-                continue
             started = time.monotonic()
             run['actions_used'] = actions_used + 1
             run['model_calls'] += 1
@@ -213,6 +214,11 @@ class Engine:
                 action = self.client.generate([{'role': 'system', 'content': system_prompt(self.state['roles'][task['owner']])},
                        {'role': 'user', 'content': json.dumps(self.context(task), ensure_ascii=False)}])
                 run['tokens'] += int(getattr(self.client, 'usage', {}).get('total_tokens', 0))
+                if stop_requested and stop_requested():
+                    self.enqueue(task_id)
+                    self.event('execution_paused', task=task_id,
+                               reason='Model response discarded after operator stop request')
+                    break
                 self.event('agent_action', agent=task['owner'], task=task_id, action=action,
                            latency_seconds=round(time.monotonic() - started, 3))
                 self.apply(task, action)
@@ -590,6 +596,23 @@ class Engine:
                 return child_id
         return None
 
+    def reference_gathered(self, task, reference):
+        """Require a source/artifact citation to have been obtained in this review."""
+        for event in self.state['events']:
+            if (event['kind'] != 'tool_result' or event.get('task') != task['id']
+                    or event.get('agent') != task['owner']):
+                continue
+            result = event.get('result')
+            if reference.startswith('a'):
+                if (event.get('name') == 'artifact.import' and isinstance(result, dict)
+                        and result.get('imported') == reference):
+                    return True
+            elif event.get('name') in {'web.search', 'web.fetch'}:
+                rows = result if isinstance(result, list) else [result]
+                if any(isinstance(row, dict) and row.get('id') == reference for row in rows):
+                    return True
+        return False
+
     def review(self, review_task, action):
         if review_task['kind'] != 'review' or not isinstance(action.get('approved'), bool):
             raise ValueError('Review action requires an assigned review task and a boolean verdict')
@@ -625,7 +648,8 @@ class Engine:
                 self.validate_evidence(check['evidence'], task_id=review_task['id'], agent_id=review_task['owner'])
                 for ref in check['evidence']:
                     if isinstance(ref, str):
-                        # A source ID carries no execution result to inspect.
+                        if not self.reference_gathered(review_task, ref):
+                            raise ValueError('Reviewer must gather independent tool evidence for ' + ref)
                         continue
                     result = self.state['events'][ref - 1]['result']
                     if isinstance(result, dict) and result.get('exit_code', 0) != 0:

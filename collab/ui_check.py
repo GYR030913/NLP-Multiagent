@@ -59,19 +59,23 @@ def structural_warnings(source, filename):
     """
     if Path(filename).suffix.lower() != '.html':
         return []
+    class ShellTags(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.counts = dict.fromkeys(STRUCTURAL_LIMITS, 0)
+
+        def handle_starttag(self, tag, attrs):
+            if tag in self.counts:
+                self.counts[tag] += 1
+
+    parser = ShellTags()
+    parser.feed(source)
     warnings = []
-    lowered = source.lower()
     for tag, limit in STRUCTURAL_LIMITS.items():
-        count = lowered.count('<' + tag)
+        count = parser.counts[tag]
         if count > limit:
             warnings.append(f'HTML contains {count} <{tag}> elements; expected {limit}. '
-                            f'The document may contain duplicated or concatenated content.')
-    parser = Scripts()
-    parser.feed(source)
-    bodies = [chunk for chunk in parser.chunks if chunk[0].count('document.')]
-    if len(bodies) > 1:
-        warnings.append(f'HTML contains {len(bodies)} scripts that both reference document; '
-                        'the file may have been concatenated twice.')
+                            'The document may contain duplicated or concatenated content.')
     return warnings
 
 
@@ -90,7 +94,8 @@ def check_source(source, filename):
         parser.feed(source)
         chunks = parser.chunks
     if not chunks:
-        return {'exit_code': 0, 'checked_scripts': 0}
+        return {'exit_code': 0, 'checked_scripts': 0,
+                'validation_warnings': structural_warnings(source, filename)}
     node = shutil.which('node')
     if not node:
         raise ValueError('Node.js is required for static JavaScript syntax checks; install Node.js and reopen the terminal.')
